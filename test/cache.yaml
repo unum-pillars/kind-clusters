@@ -1,0 +1,21 @@
+# Throwaway app to prove the cluster's cache: count a visit in redis and say the total. The server is redis.redis.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cache
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: app
+        image: redis:7.4
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          until redis-cli -h redis.redis ping >/dev/null 2>&1; do sleep 2; done
+          echo "visits=$(redis-cli -h redis.redis INCR visits)"

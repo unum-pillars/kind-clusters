@@ -1,0 +1,35 @@
+# Throwaway app to prove the cluster's database: what an app does on first deploy. Connect as root, create its
+# database if it's missing and say so, migrate, write a row. The server is mysql.mysql.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: app
+        image: mysql:8.4
+        env:
+        - name: MYSQL_PWD
+          value: root
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          q() { mysql -h mysql.mysql -uroot -N -B "$@"; }
+          until q -e 'SELECT 1' >/dev/null 2>&1; do sleep 2; done
+          if [ "$(q -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='hello'")" = 0 ]; then
+            q -e 'CREATE DATABASE hello'
+            echo "created database hello"
+          else
+            echo "database hello exists"
+          fi
+          q hello -e 'CREATE TABLE IF NOT EXISTS visits (id INT AUTO_INCREMENT PRIMARY KEY, at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)'
+          echo "migrated hello"
+          q hello -e 'INSERT INTO visits () VALUES ()'
+          echo "rows=$(q hello -e 'SELECT COUNT(*) FROM visits')"

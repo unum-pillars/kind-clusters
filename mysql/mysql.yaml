@@ -1,0 +1,62 @@
+# The cluster's database server. Its data is /data/mysql on the node, which kind mounts from ~/.kind-data/<name> on the
+# host, so it outlives the cluster. Root with a fixed password, reachable in the cluster as mysql.mysql:3306.
+# Local dev only: the password is public on purpose. Apps create their own databases; nothing here knows about them.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mysql
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql
+  namespace: mysql
+stringData:
+  MYSQL_ROOT_PASSWORD: root
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: mysql}
+  template:
+    metadata:
+      labels: {app: mysql}
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.4
+        envFrom:
+        - secretRef:
+            name: mysql
+        ports:
+        - containerPort: 3306
+        readinessProbe:
+          exec:
+            command: [sh, -c, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"']
+          periodSeconds: 3
+          failureThreshold: 60
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: data
+        hostPath:
+          path: /data/mysql
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: mysql
+spec:
+  selector: {app: mysql}
+  ports:
+  - port: 3306
