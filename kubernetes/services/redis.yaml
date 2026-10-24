@@ -1,0 +1,52 @@
+# The cluster's cache server. Its data is /data/redis on the node, which kind mounts from ~/.kind-data/<name> on the
+# host, so it outlives the cluster. No password, reachable in the cluster as redis.redis:6379.
+# Local dev only. Apps use it as they like; nothing here knows about them.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.4
+        args: [redis-server, --appendonly, "yes", --dir, /data]
+        ports:
+        - containerPort: 6379
+        readinessProbe:
+          exec:
+            command: [redis-cli, ping]
+          periodSeconds: 3
+          failureThreshold: 20
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        hostPath:
+          path: /data/redis
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: redis
+spec:
+  selector: {app: redis}
+  ports:
+  - port: 6379
