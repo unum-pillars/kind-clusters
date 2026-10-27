@@ -39,3 +39,11 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
 
     kubectl --context kind-us apply -f test/data.yaml -f test/cache.yaml
     kubectl --context kind-us logs job/data job/cache
+
+## Lint
+
+    make lint
+
+Offline, only Docker needed: every `kustomization.yaml` builds, `test/*.sh` passes shellcheck, and the YAML passes
+yamllint (`.yamllint`). Jenkins runs it on every push. It doesn't cover the Tiltfiles or anything that needs a cluster,
+so run `make ci`, `make test` and `make test-cross` yourself before merging.
