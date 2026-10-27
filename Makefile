@@ -9,7 +9,7 @@ setup:
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup cluster up ci test down
+.PHONY: setup cluster up ci test test-cross down
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
 cluster:
@@ -28,6 +28,13 @@ ci: cluster
 # Prove the running Unum is what its apps.yaml says.
 test:
 	test/unum.sh $(NAME)
+
+# Prove each of FROM and TO reaches the other's unifist-unum API by node name and NodePort, both clusters up.
+FROM?=us
+TO?=them
+test-cross:
+	test/cross.sh $(FROM) $(TO)
+	test/cross.sh $(TO) $(FROM)
 
 # Delete the cluster. Its data in data/$(NAME) stays.
 down:

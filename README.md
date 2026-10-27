@@ -23,15 +23,27 @@ A cluster is the pillars above plus the apps in its `apps.yaml`, each pinned to 
 
 The tag is the app's git tag and its Docker Hub image tag (`gaf3/unum-apps-<app>`), so it pins the app's YAML and its
 image together. `apps/<app>/glue.yaml` holds what the app needs around it that its own YAML doesn't carry, its namespace
-and the secret that points it at the cluster's MySQL. Only `us/` has apps so far, from tags only; hashes, checkouts and
-`them/` come next (#3).
+and the secret that points it at the cluster's MySQL. `us/` and `them/` both run `unifist-unum` at 0.1.0, from tags only; hashes and checkouts come next (#3).
 
     make up   NAME=us   # make the cluster if it's missing, then tilt up: everything pinned in us/apps.yaml
     make ci   NAME=us   # the same, but wait until every workload is healthy and stop
     make test NAME=us   # prove it: pinned images, /health answers, the databases the app made
     make down NAME=us   # delete the cluster, its data in data/us stays
 
+    make test-cross FROM=us TO=them   # each reaches the other's API from a pod, both ways
+
 Needs Tilt too: `make setup` installs it.
+
+### Calling between Unums
+
+Server to server goes by node name and NodePort, not ingress. A kind node's container is named `<cluster>-control-plane`
+on the shared `kind` Docker network, so a pod in `us` calls `http://them-control-plane:30465/health`. An app that can be
+called from another Unum has a `NodePort` Service in its `apps/<app>/glue.yaml`, on a fixed port from this table so no
+two clash:
+
+| Port  | App                     |
+|-------|-------------------------|
+| 30465 | `unifist-unum` API      |
 
 ## Use
 
