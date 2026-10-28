@@ -83,6 +83,21 @@ Server to server, a Route's url is that name. Use `wget`, not `curl`, to try it 
 to 127.0.0.1 itself, without asking DNS. The node ports go down to 80 because each cluster's `kind.yaml` widens the range
 when it is made; an existing cluster has to be deleted and made again (its data stays).
 
+### Joining
+
+Two Unums that are joined read each other's records. Joining is a Route row in each Unum's `unum.route` for the other: the
+other as holder and owner of everything it made, at its cumulus api by name,
+`http://api.cumulus.<unum>.localhost`. `make join` puts them in through unifist-unum's REST, so it's the app that writes
+them, and is safe to run again:
+
+    make join A=us B=them        # defaults to us and them
+    make test-route A=us B=them  # a record made in one is read from the other, once, with the id of the Unum that made it
+
+`make test-route` takes the join away first to show neither sees the other's records, then joins and checks both ways, and
+leaves them joined. Known: with the Unums joined both ways, every cumulus read in either one fails, each asking the other
+and the other asking back (relations-unum 0.4.3), so the test fails at its joined step until that is fixed; joined one way
+only (a row in `us` for `them`), `us` reads `them`'s records fine.
+
 ### Browsers
 
 The same names work in a browser on your Mac, on port 80. The ingress cluster from
@@ -139,5 +154,5 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
 
 Only Docker and the network needed (`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, and the
 YAML passes yamllint (`.yamllint`); `test-add` proves `scripts/add.sh`. Jenkins runs both on every push. It doesn't cover the Tiltfiles or anything that needs a cluster,
-so run `make ci`, `make test`, `make test-cross` and, for anything about where an app comes from, `make test-swap` and
+so run `make ci`, `make test`, `make test-cross`, `make test-route` and, for anything about where an app comes from, `make test-swap` and
 `make test-catalog` yourself before merging.
