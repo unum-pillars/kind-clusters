@@ -9,6 +9,12 @@ APPS=$NAME/apps.yaml
 
 test -f "$APPS" || { echo "$APPS is missing"; exit 1; }
 
+# The ingress every Unum has: Traefik up, its Service on node ports 80 and 443.
+kubectl --context "$CTX" -n traefik rollout status deployment/traefik --timeout=180s
+ports=$(kubectl --context "$CTX" -n traefik get service traefik -o jsonpath='{range .spec.ports[*]}{.nodePort} {end}')
+test "$ports" = "80 443 " || { echo "traefik is on node ports $ports, not 80 443"; exit 1; }
+echo "traefik answers on node ports 80 and 443"
+
 # One "app source value" line per app in apps.yaml, the source being tag, hash or checkout.
 awk '/^[^ #]/ {app=$1; sub(":", "", app)} /^  (tag|hash|checkout):/ {source=$1; sub(":", "", source); print app, source, $2}' "$APPS" |
 while read -r app source value; do
@@ -32,6 +38,14 @@ while read -r app source value; do
         $expected) echo "$deployment runs $image" ;;
         *) echo "$deployment runs $image, not $expected"; exit 1 ;;
         esac
+    done
+
+    # Every Service has an Ingress at <service>.<namespace>.<cluster>.localhost.
+    for service in $(kubectl --context "$CTX" -n "$app" get services -o name | sed 's|service/||' | grep -v -- '-node$'); do
+        host="$service.$app.$NAME.localhost"
+        kubectl --context "$CTX" -n "$app" get ingress "$service" -o jsonpath='{.spec.rules[0].host}' | grep -qx "$host" ||
+            { echo "no ingress for $host"; exit 1; }
+        echo "$service is at $host"
     done
 
     # The app answers inside the cluster, by its service name.

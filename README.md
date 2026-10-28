@@ -31,14 +31,15 @@ A tag is the app's git tag and its Docker Hub image tag, so it pins the YAML and
 commit on `main`, since that is all Jenkins publishes images for; code on a branch is a checkout. A checkout runs the
 repo's own `kubernetes/tilt` YAML, with its images built from the repo and loaded into the cluster, so changes to the
 code show up live while Tilt runs. Every app gets its namespace and the `secret` that points it at the cluster's MySQL
-from `unum.star`, the same whichever the source. What only some apps have, like NodePorts, is in `apps/<app>/extra.yaml`.
+from `unum.star`, the same whichever the source. What only some apps have, like a NodePort for browsers, is in
+`apps/<app>/extra.yaml`.
 
     make up   NAME=us   # make the cluster if it's missing, then tilt up: everything in us/apps.yaml
     make ci   NAME=us   # the same, but wait until every workload is healthy and stop
-    make test NAME=us   # prove it: the images, /health answers, the databases the app made, the GUI on its host port
+    make test NAME=us   # prove it: the ingress, the images, the names, /health answers, the databases, the GUI on its host port
     make down NAME=us   # delete the cluster, its data in data/us stays
 
-    make test-cross FROM=us TO=them   # each reaches the other's API from a pod, both ways
+    make test-cross FROM=us TO=them   # each reaches the other, and itself, by name and no port
 
 Needs Tilt too: `make setup` installs it.
 
@@ -58,30 +59,35 @@ taking it down, changing its line and bringing it up: its data is in MySQL and R
     make add NAME=us APP=unifist-unum CHECKOUT=../../unum-apps/unifist-unum
     make up NAME=us
 
-### Calling between Unums
+### Names
 
-Server to server goes by node name and NodePort, not ingress. A kind node's container is named `<cluster>-control-plane`
-on the shared `kind` Docker network, so a pod in `us` calls `http://them-control-plane:30465/health`. An app that can be
-called from another Unum has a `NodePort` Service in its `apps/<app>/extra.yaml`, on a fixed port from this table so no
-two clash:
+Every Unum runs an ingress (Traefik, from kind-ingress, pinned in `ingress/`) on its node's ports 80 and 443. Every
+Service of every app gets an Ingress at
 
-| Port  | App                     |
-|-------|-------------------------|
-| 30465 | `unifist-unum` API      |
-| 30466 | `unifist-unum` GUI      |
+    <service>.<namespace>.<cluster>.localhost
+
+made by `unum.star`, whichever way the app comes in. CoreDNS in each Unum sends any `<name>.<cluster>.localhost` to
+`<cluster>-control-plane`, the kind node's container name on the shared `kind` Docker network. So a pod in `us` calls
+
+    http://api.unifist-unum.them.localhost/health
+
+with no port, and a pod in `us` calls its own cluster's apps the same way. One rule covers `us`, `them` and `we` later.
+Server to server, a Route's url is that name. Use `wget`, not `curl`, to try it in a pod: curl sends every `*.localhost`
+to 127.0.0.1 itself, without asking DNS. The node ports go down to 80 because each cluster's `kind.yaml` widens the range
+when it is made; an existing cluster has to be deleted and made again (its data stays).
 
 ### Browsers
 
-A browser reaches an app's GUI through a NodePort that the cluster's `kind.yaml` maps to a port on the host, 127.0.0.1
-only. Each Unum has its own host port, so `us` and `them` can be up together:
+A browser on your Mac reaches an app's GUI through a NodePort that the cluster's `kind.yaml` maps to a port on the host,
+127.0.0.1 only. Each Unum has its own host port, so `us` and `them` can be up together:
 
-| Cluster | `unifist-unum` GUI      |
-|---------|-------------------------|
-| `us`    | http://localhost:5465   |
-| `them`  | http://localhost:5466   |
+| Port  | App                | Cluster | Browser                 |
+|-------|--------------------|---------|-------------------------|
+| 30466 | `unifist-unum` GUI | `us`    | http://localhost:5465   |
+|       |                    | `them`  | http://localhost:5466   |
 
-Changing a mapping means recreating the cluster (`make down`, `make up`); its data stays. Ingress is not part of this: only
-one cluster can hold the host's 80 and 443, so it is left to kind-ingress.
+Browsers don't use the names above yet: that takes a cluster on the host's ports 80 and 443, and only one can hold them
+(kind-ingress's own `ingress` cluster does when it is up).
 
 ## Use
 
@@ -114,7 +120,7 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
     make lint
     make test-add
 
-Offline, only Docker needed: every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, and the
+Only Docker and the network needed (`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, and the
 YAML passes yamllint (`.yamllint`); `test-add` proves `scripts/add.sh`. Jenkins runs both on every push. It doesn't cover the Tiltfiles or anything that needs a cluster,
 so run `make ci`, `make test`, `make test-cross` and, for anything about where an app comes from, `make test-swap` and
 `make test-catalog` yourself before merging.

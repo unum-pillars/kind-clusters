@@ -3,6 +3,8 @@
 #   tag:      its YAML at that git tag, its Docker Hub image at the same tag.
 #   hash:     its YAML at that commit of main, its Docker Hub image at the hash's first 7 characters.
 #   checkout: the repo on disk (a path from here, or absolute), built and run in place by Tilt.
+# Whichever, every Service gets an Ingress at <service>.<namespace>.<cluster>.localhost, and a pod resolves that name to
+# the cluster's node, where Traefik answers on port 80.
 
 ACCOUNT = 'gaf3'
 
@@ -85,6 +87,32 @@ def around(app):
         },
     ]))
 
+def ingresses(name, yaml):
+    """An Ingress for every Service the app's YAML has, at <service>.<namespace>.<cluster>.localhost: the apps ship none."""
+
+    docs = []
+
+    for doc in decode_yaml_stream(yaml):
+        if doc['kind'] == 'Service':
+            service = doc['metadata']['name']
+            namespace = doc['metadata']['namespace']
+
+            docs.append({
+                'apiVersion': 'networking.k8s.io/v1',
+                'kind': 'Ingress',
+                'metadata': {'name': service, 'namespace': namespace},
+                'spec': {'rules': [{
+                    'host': '%s.%s.%s.localhost' % (service, namespace, name),
+                    'http': {'paths': [{
+                        'path': '/',
+                        'pathType': 'Prefix',
+                        'backend': {'service': {'name': service, 'port': {'number': doc['spec']['ports'][0]['port']}}},
+                    }]},
+                }]},
+            })
+
+    return str(encode_yaml_stream(docs))
+
 def unum():
     """Brings up the cluster whose folder holds the Tiltfile that called this."""
 
@@ -96,6 +124,11 @@ def unum():
     watch_file(config.main_dir + '/apps.yaml')
 
     k8s_yaml(kustomize(config.main_dir))
+
+    # The ingress and the names, once the cluster is up; its CRDs need a server side apply, which Tilt's YAML doesn't do.
+    local_resource(
+        'ingress', cmd=['scripts/ingress.sh', name], deps=[config.main_dir + '/../' + path for path in ['ingress', 'coredns', 'scripts/ingress.sh']],
+        dir=config.main_dir + '/..')
 
     apps = read_yaml(config.main_dir + '/apps.yaml')
 
@@ -120,6 +153,7 @@ def unum():
             fail('%s in apps.yaml needs a tag, a hash or a checkout' % app)
 
         k8s_yaml(blob(yaml))
+        k8s_yaml(blob(ingresses(name, yaml)))
 
         # An app's first deploy needs the pillars, so its workloads wait for them.
         for doc in decode_yaml_stream(yaml):
