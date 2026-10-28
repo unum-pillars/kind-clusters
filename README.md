@@ -157,6 +157,6 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
     make test-version
 
 Only Docker and the network needed (`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, and the
-YAML passes yamllint (`.yamllint`); `test-add` proves `scripts/add.sh`. Jenkins runs both on every push. It doesn't cover the Tiltfiles or anything that needs a cluster,
+YAML passes yamllint (`.yamllint`); `test-add` proves `scripts/add.sh`. Jenkins runs both on every push, and then brings up `us` and `them` on its agent and runs `make test`, `make test-cross` and `make test-route`. It doesn't cover the Tiltfiles or anything that needs a cluster,
 so run `make ci`, `make test`, `make test-cross`, `make test-route` and, for anything about where an app comes from, `make test-swap` and
 `make test-catalog` yourself before merging.
