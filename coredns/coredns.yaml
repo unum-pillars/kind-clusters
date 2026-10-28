@@ -1,0 +1,35 @@
+# Applied to every Unum. A name under <cluster>.localhost is answered with that cluster's node, so a pod uses the same
+# <service>.<namespace>.<cluster>.localhost a browser does, in or across Unums: the name goes to <cluster>-control-plane,
+# which Docker's DNS answers on the kind network through the forward below. One rule covers us, them and we.
+# The rest is kind's own Corefile for kindest/node v1.35.0: check it again when the node image changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        rewrite name regex ^(.+)\.([a-z0-9-]+)\.localhost\.$ {2}-control-plane. answer auto
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }

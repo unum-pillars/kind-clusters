@@ -1,11 +1,18 @@
 # The us cluster: kind create cluster --name us --config us/kind.yaml
-# Its data lives in data/us in the directory you run that from, mounted into the node at /data. Its GUIs are on
-# localhost:5465, see the port table in the README.
+# Its data lives in data/us in the directory you run that from, mounted into the node at /data. Its node ports go down
+# to 80, so the ingress is on the node's ports 80 and 443 (kubeadm v1beta3: extraArgs is a map; v1beta4 is refused). Its
+# GUIs are on localhost:5465, see the port table in the README.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
   image: kindest/node:v1.35.0
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        service-node-port-range: "80-32767"
   extraPortMappings:
   - containerPort: 30466
     hostPort: 5465

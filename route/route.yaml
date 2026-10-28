@@ -1,0 +1,29 @@
+# Applied to the ingress cluster (kind-ingress) for each Unum, __NAME__ replaced by scripts/route.sh. Everything under
+# *.__NAME__.localhost goes to that Unum's node, port 80, where its own Traefik takes it from there, Host header untouched.
+# The ingress cluster is the one that holds the host's ports 80 and 443, so this is what lets a browser use the same names
+# as the pods do.
+apiVersion: v1
+kind: Service
+metadata:
+  name: __NAME__
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: __NAME__-control-plane
+  ports:
+  - port: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: __NAME__
+  namespace: traefik
+spec:
+  entryPoints:
+  - web
+  routes:
+  - kind: Rule
+    match: HostRegexp(`^.+\.__NAME__\.localhost$`)
+    services:
+    - name: __NAME__
+      port: 80

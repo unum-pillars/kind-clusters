@@ -1,16 +1,19 @@
 #!/bin/sh
-# Prove one Unum reaches another's unifist-unum API from inside its cluster, by the other's node name and NodePort
-# (see the port table in the README). Usage: test/cross.sh <from> <to>, with both clusters up. Run it both ways.
+# Prove a pod in one Unum reaches another's unifist-unum by its public name and no port, through the other's ingress:
+# <service>.<namespace>.<cluster>.localhost, the name the README gives. Usage: test/cross.sh <from> <to>, with both
+# clusters up; FROM and TO can be the same cluster. Run it both ways. It's wget, not curl: curl sends every
+# *.localhost to 127.0.0.1 itself without asking DNS, so it never uses the CoreDNS rewrite.
 set -e
 
 FROM=$1
 TO=$2
-PORT=30465
+APP=unifist-unum
 
 kubectl --context "kind-$FROM" run "cross-$TO" --rm -i --restart=Never --image=busybox:1.36 --command -- sh -c "
     for i in \$(seq 1 30); do
-        wget -q -T 5 -O - http://$TO-control-plane:$PORT/health | grep -q OK && echo ok && exit 0
+        wget -q -T 5 -O - http://api.$APP.$TO.localhost/health | grep -q OK &&
+        wget -q -T 5 -O - http://gui.$APP.$TO.localhost/api/health | grep -q OK && echo ok && exit 0
         sleep 2
     done
-    echo '$TO-control-plane:$PORT never answered from $FROM'
+    echo 'api.$APP.$TO.localhost never answered from $FROM'
     exit 1"

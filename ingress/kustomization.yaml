@@ -1,0 +1,19 @@
+# The ingress every Unum runs: kind-ingress's Traefik, pinned to a commit (it has no tags), with its Service on node ports
+# 80 and 443 themselves so a pod on the kind network reaches <cluster>-control-plane on the ports a browser would. That
+# needs the node port range widened, which each cluster's kind.yaml does when the cluster is made. It's applied server
+# side by scripts/ingress.sh, since Traefik's CRDs are too big for a client side apply.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- github.com/gaf3/kind-ingress/ingress?ref=3c0a0f1202326f9a39d6227f3302b2ff0834bd98
+patches:
+- target:
+    kind: Service
+    name: traefik
+  patch: |-
+    - op: replace
+      path: /spec/ports/0/nodePort
+      value: 80
+    - op: replace
+      path: /spec/ports/1/nodePort
+      value: 443

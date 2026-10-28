@@ -1,7 +1,7 @@
 # What unifist-unum has that not every app does: the NodePorts it is reached by. The app's own Services stay ClusterIP.
 # The ports every app uses are in the README, so no two clash.
 #
-# How another Unum reaches the API: <cluster>-control-plane:30465, from inside its cluster.
+# How another Unum can reach the API without the ingress: <cluster>-control-plane:30465, from inside its cluster.
 apiVersion: v1
 kind: Service
 metadata:

@@ -9,7 +9,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup lint cluster up ci test test-cross test-swap test-add test-catalog catalog add down help
+.PHONY: setup lint cluster up ci test test-cross test-browser test-swap test-add test-catalog catalog add down help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
@@ -30,12 +30,18 @@ ci: cluster ## Brings the Unum NAME up, waits until everything is healthy, and s
 test: ## Proves the running Unum NAME is what its apps.yaml says
 	test/unum.sh $(NAME)
 
-# Prove each of FROM and TO reaches the other's unifist-unum API by node name and NodePort, both clusters up.
+# Prove each of FROM and TO reaches the other's unifist-unum, and its own, by name and no port, both clusters up.
 FROM?=us
 TO?=them
-test-cross: ## Proves FROM and TO reach each other by node name and NodePort
+test-cross: ## Proves FROM and TO reach each other, and themselves, by name and no port
 	test/cross.sh $(FROM) $(TO)
 	test/cross.sh $(TO) $(FROM)
+	test/cross.sh $(FROM) $(FROM)
+	test/cross.sh $(TO) $(TO)
+
+# Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
+test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
+	test/browser.sh $(NAME)
 
 # Prove an app can move between sources and keep its data, slow: make test-swap NAME=us APP=unifist-unum HASH=414f9ac, HASH
 # being a commit on the app's main and CHECKOUT (../../unum-apps/<app> unless given) its repo on disk.
@@ -66,7 +72,7 @@ add: ## Puts APP in NAME/apps.yaml from TAG, HASH or CHECKOUT
 down: ## Deletes the cluster NAME, its data stays
 	kind delete cluster --name $(NAME)
 
-# Offline checks, only Docker needed: every kustomization builds, the shell scripts are clean, the YAML is tidy. It does
+# Checks that need only Docker and the network (ingress/ pulls kind-ingress): every kustomization builds, the shell scripts are clean, the YAML is tidy. It does
 # not cover the Tiltfiles or anything that needs a live cluster; those are make ci, test and test-cross by hand.
 KUSTOMIZE=registry.k8s.io/kustomize/kustomize:v5.7.1
 SHELLCHECK=koalaman/shellcheck:v0.10.0
