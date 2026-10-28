@@ -12,7 +12,9 @@ WHO="route-test-$$"
 # A pod in each cluster to call from, and the records made, taken away however this ends.
 cleanup() {
     for c in "$A" "$B"; do
-        kubectl --context "kind-$c" exec route-test -- curl -s -m 10 -X DELETE "http://api.cumulus/model/unifist/$WHO-$c:unifist.cumulus:$c" >/dev/null 2>&1 || true
+        for who in "$WHO-$c" $(ordered "$c"); do
+            kubectl --context "kind-$c" exec route-test -- curl -s -m 10 -X DELETE "http://api.cumulus/model/unifist/$who:unifist.cumulus:$c" >/dev/null 2>&1 || true
+        done
         kubectl --context "kind-$c" delete pod route-test --ignore-not-found --wait=false >/dev/null 2>&1 || true
     done
 }
@@ -40,6 +42,12 @@ count() {
 expect() {
     test "$2" = "$3" || { echo "$1: $2, not $3"; exit 1; }
     echo "$1: $2"
+}
+
+# ordered <cluster>: the names of the records the order check makes in the cluster, A the odd ones and B the even, so that
+# sorted by id they alternate between the two Unums
+ordered() {
+    if test "$1" = "$A"; then echo "$WHO-o1 $WHO-o3"; else echo "$WHO-o2 $WHO-o4"; fi
 }
 
 # Not joined: the join rows are the ones the other holds, the only ones with a holder that isn't the Unum itself.
@@ -89,6 +97,28 @@ for c in "$A" "$B"; do
         got=$(kubectl --context "kind-$held" -n mysql exec deployment/mysql -- env MYSQL_PWD=root mysql -uroot -N -e "SELECT COUNT(*) FROM cumulus.unifist WHERE who='$WHO-$c'")
         expect "$WHO-$c is held in $held" "$got" "$want"
     done
+done
+
+# Read in order, whichever Unum asks: the records of both merged as if they were one, ascending and descending.
+for c in "$A" "$B"; do
+    for who in $(ordered "$c"); do
+        call "$c" -X POST http://api.cumulus/model/unifist -H 'Content-Type: application/json' -d "{\"unifist\": {\"who\": \"$who\"}}" |
+            grep -q "\"id\": \"$who:unifist.cumulus:$c\"" || { echo "no record $who made in $c"; exit 1; }
+    done
+done
+
+ids() {
+    call "$1" "http://api.cumulus/model/unifist$2" | grep -o "\"id\": \"$WHO-o[0-9]:" | grep -o "$WHO-o[0-9]" | tr '\n' ' '
+}
+
+for c in "$A" "$B"; do
+    expect "$c reads in order" "$(ids "$c" "")" "$WHO-o1 $WHO-o2 $WHO-o3 $WHO-o4 "
+    expect "$c reads in reverse" "$(ids "$c" "?sort=-id")" "$WHO-o4 $WHO-o3 $WHO-o2 $WHO-o1 "
+done
+
+# And it answers, fast: joined both ways, a read that asked for ever would time out, or fail when the database ran out of connections.
+for c in "$A" "$B"; do
+    expect "$c answers a read of everything" "$(call "$c" -m 5 -o /dev/null -w '%{http_code}' http://api.cumulus/model/unifist)" 200
 done
 
 echo ok

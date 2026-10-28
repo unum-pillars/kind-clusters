@@ -93,8 +93,9 @@ them, and is safe to run again:
     make join A=us B=them        # defaults to us and them
     make test-route A=us B=them  # a record made in one is read from the other, once, with the id of the Unum that made it
 
-`make test-route` takes the join away first to show neither sees the other's records, then joins and checks both ways, and
-leaves them joined. A record's `home` is the Unum that made it, the last part of its id; a query naming it (`home=us`) is
+`make test-route` takes the join away first to show neither sees the other's records, then joins and checks both ways (each
+record read once, held once, and the records of both Unums merged in id order, ascending and descending, from either side),
+that a read of everything answers within 5 seconds, and leaves them joined. A record's `home` is the Unum that made it, the last part of its id; a query naming it (`home=us`) is
 what tells routing which Unums to ask, so a Unum answers from its own rows and the Unums joined to each other don't ask
 each other for ever.
 

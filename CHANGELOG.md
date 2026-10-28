@@ -2,7 +2,7 @@
 
 ## 0.2.0
 
-- Joined Unums: `make join A=us B=them` puts a Route row in each Unum's `unum.route` for the other (the records whose `home` is the other, owned by it as `holder`, at its cumulus api by name, no port), through unifist-unum's REST, safe to run again. `make test-route` proves a cumulus record made in one is read from the other once, with the id of the Unum that made it and held only there, and that neither sees the other's before they are joined (unum-pillars/kind-clusters#13).
+- Joined Unums: `make join A=us B=them` puts a Route row in each Unum's `unum.route` for the other (the records whose `home` is the other, owned by it as `holder`, at its cumulus api by name, no port), through unifist-unum's REST, safe to run again. `make test-route` proves a cumulus record made in one is read from the other once, with the id of the Unum that made it and held only there, that neither sees the other's before they are joined, that records made in both Unums come back merged in order (and in reverse) from either side, and that a read of everything answers 200 within 5 seconds, so joined Unums asking each other for ever would fail it (unum-pillars/kind-clusters#13).
 - A record's `unum` field is `home` (relations-unifist 0.5.0, relations-unum 0.5.0, unifist-unum 0.2.0, cumulus 0.2.0), so `test/unum.sh` counts cumulus's owner Route by `home`, and `us` and `them` run `unifist-unum` and `cumulus` at 0.2.0 (relations-dil/python-relations-unifist#17).
 
 ## 0.1.0
