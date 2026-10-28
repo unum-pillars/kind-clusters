@@ -40,6 +40,7 @@ from `unum.star`, the same whichever the source. What only some apps have, like 
     make down NAME=us   # delete the cluster, its data in data/us stays
 
     make test-cross FROM=us TO=them   # each reaches the other, and itself, by name and no port
+    make test-browser NAME=us         # this machine reaches it by name on port 80, the ingress cluster up
 
 Needs Tilt too: `make setup` installs it.
 
@@ -78,16 +79,26 @@ when it is made; an existing cluster has to be deleted and made again (its data 
 
 ### Browsers
 
-A browser on your Mac reaches an app's GUI through a NodePort that the cluster's `kind.yaml` maps to a port on the host,
-127.0.0.1 only. Each Unum has its own host port, so `us` and `them` can be up together:
+The same names work in a browser on your Mac, on port 80. The ingress cluster from
+[kind-ingress](https://github.com/gaf3/kind-ingress) holds the host's ports 80 and 443 and sends everything under
+`*.<cluster>.localhost` to that Unum's node, where the Unum's own ingress takes it. `make up` sets the route (see
+`route/route.yaml`) when an ingress cluster exists, and says so when it doesn't. So with both up,
 
-| Port  | App                | Cluster | Browser                 |
-|-------|--------------------|---------|-------------------------|
-| 30466 | `unifist-unum` GUI | `us`    | http://localhost:5465   |
-|       |                    | `them`  | http://localhost:5466   |
+    http://gui.unifist-unum.us.localhost/
 
-Browsers don't use the names above yet: that takes a cluster on the host's ports 80 and 443, and only one can hold them
-(kind-ingress's own `ingress` cluster does when it is up).
+is the GUI of `us`. `make test-browser NAME=us` proves it from the host. Without an ingress cluster a Unum's GUI is still on
+its own host port, `us` on http://localhost:5465 and `them` on http://localhost:5466, a NodePort that the cluster's
+`kind.yaml` maps to the host, 127.0.0.1 only.
+
+### Calling without the ingress
+
+An app that can be called by node name and NodePort has a `NodePort` Service in its `apps/<app>/extra.yaml`, on a fixed
+port from this table so no two clash. A pod in `us` can call `http://them-control-plane:30465/health`.
+
+| Port  | App                     |
+|-------|-------------------------|
+| 30465 | `unifist-unum` API      |
+| 30466 | `unifist-unum` GUI      |
 
 ## Use
 

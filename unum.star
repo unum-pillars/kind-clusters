@@ -130,6 +130,11 @@ def unum():
         'ingress', cmd=['scripts/ingress.sh', name], deps=[config.main_dir + '/../' + path for path in ['ingress', 'coredns', 'scripts/ingress.sh']],
         dir=config.main_dir + '/..')
 
+    # The ingress cluster, if there is one, sends this Unum's names here, so a browser uses the names pods do.
+    local_resource(
+        'route', cmd=['scripts/route.sh', name], deps=[config.main_dir + '/../route', config.main_dir + '/../scripts/route.sh'],
+        dir=config.main_dir + '/..')
+
     apps = read_yaml(config.main_dir + '/apps.yaml')
 
     for app in apps:

@@ -9,7 +9,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup lint cluster up ci test test-cross test-swap test-add test-catalog catalog add down help
+.PHONY: setup lint cluster up ci test test-cross test-browser test-swap test-add test-catalog catalog add down help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
@@ -38,6 +38,10 @@ test-cross: ## Proves FROM and TO reach each other, and themselves, by name and 
 	test/cross.sh $(TO) $(FROM)
 	test/cross.sh $(FROM) $(FROM)
 	test/cross.sh $(TO) $(TO)
+
+# Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
+test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
+	test/browser.sh $(NAME)
 
 # Prove an app can move between sources and keep its data, slow: make test-swap NAME=us APP=unifist-unum HASH=414f9ac, HASH
 # being a commit on the app's main and CHECKOUT (../../unum-apps/<app> unless given) its repo on disk.
