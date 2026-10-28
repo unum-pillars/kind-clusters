@@ -9,7 +9,7 @@ setup:
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup cluster up ci test test-cross down
+.PHONY: setup lint cluster up ci test test-cross down
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
 cluster:
@@ -39,3 +39,15 @@ test-cross:
 # Delete the cluster. Its data in data/$(NAME) stays.
 down:
 	kind delete cluster --name $(NAME)
+
+# Offline checks, only Docker needed: every kustomization builds, the shell scripts are clean, the YAML is tidy. It does
+# not cover the Tiltfiles or anything that needs a live cluster; those are make ci, test and test-cross by hand.
+KUSTOMIZE=registry.k8s.io/kustomize/kustomize:v5.7.1
+SHELLCHECK=koalaman/shellcheck:v0.10.0
+YAMLLINT=pipelinecomponents/yamllint:0.35.8
+lint:
+	for dir in $$(find . -name kustomization.yaml -not -path './data/*' -not -path './.git/*' -exec dirname {} \; | sort); do \
+	echo "kustomize $$dir"; docker run --rm -v "$$PWD:/work:ro" -w /work $(KUSTOMIZE) build $$dir >/dev/null || exit 1; done
+	scripts=$$(find test -name '*.sh' | sort); test -z "$$scripts" || docker run --rm -v "$$PWD:/work:ro" -w /work $(SHELLCHECK) $$scripts
+	docker run --rm -v "$$PWD:/work:ro" -w /work $(YAMLLINT) yamllint --strict .
+	@echo "ok"
