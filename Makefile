@@ -9,7 +9,9 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog catalog add down help
+VERSION?=$(shell cat VERSION)
+
+.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version catalog add down tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
@@ -67,6 +69,9 @@ test-add: ## Proves scripts/add.sh, offline
 test-catalog: ## Proves scripts/catalog.sh against GitHub
 	test/catalog.sh
 
+test-version: ## Proves VERSION is x.y.z and CHANGELOG.md starts at it
+	test/version.sh
+
 # The apps there could be, then pick one for a Unum. To move an app that's running, take it down first
 # (kubectl --context kind-$(NAME) delete namespace $(APP), its data is in MySQL and Redis and stays), then make add, then make up.
 TAG?=
@@ -80,6 +85,16 @@ add: ## Puts APP in NAME/apps.yaml from TAG, HASH or CHECKOUT
 # Delete the cluster. Its data in data/$(NAME) stays.
 down: ## Deletes the cluster NAME, its data stays
 	kind delete cluster --name $(NAME)
+
+# Tag the version and push the tag so others can use ?ref=$(VERSION), doing nothing if it is already there.
+tag: ## Tags VERSION and pushes the tag, doing nothing if it is already there
+	git ls-remote --exit-code --tags origin $(VERSION) > /dev/null 2>&1 || { \
+	git rev-parse -q --verify refs/tags/$(VERSION) > /dev/null || git tag -a $(VERSION) -m "Version $(VERSION)"; \
+	git push origin $(VERSION); }
+
+untag: ## Removes the tag of VERSION here and on origin
+	-git tag -d $(VERSION)
+	git push origin ":refs/tags/$(VERSION)"
 
 # Checks that need only Docker and the network (ingress/ pulls kind-ingress): every kustomization builds, the shell scripts are clean, the YAML is tidy. It does
 # not cover the Tiltfiles or anything that needs a live cluster; those are make ci, test and test-cross by hand.

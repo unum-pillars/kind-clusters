@@ -135,9 +135,11 @@ Once, to install kind, kubectl and Docker Desktop:
 From another repo, the services can be referenced from a `kustomization.yaml`:
 
     resources:
-    - github.com/unum-pillars/kind-clusters/us?ref=main
+    - github.com/unum-pillars/kind-clusters/us?ref=0.1.0
 
 The cluster itself is made with `kind create cluster` as above, since kustomize can't make it.
+
+`ref` is a version of this repo (`VERSION`, its changelog in `CHANGELOG.md`): Jenkins tags the version on main, so `0.1.0` is what was tested at that tag. `make tag` does the same by hand and does nothing if the tag is already there.
 
 ## Test
 
@@ -151,6 +153,7 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
 
     make lint
     make test-add
+    make test-version
 
 Only Docker and the network needed (`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, and the
 YAML passes yamllint (`.yamllint`); `test-add` proves `scripts/add.sh`. Jenkins runs both on every push. It doesn't cover the Tiltfiles or anything that needs a cluster,
