@@ -16,7 +16,7 @@ join() {
             echo '$1 already has $2'
         else
             curl -s -m 10 -X POST http://api.unifist-unum/model/route -H 'Content-Type: application/json' \
-                -d '{\"route\": {\"unum\": \"$2\", \"role\": \"owner\", \"holder\": \"$2\", \"url\": \"http://api.cumulus.$2.localhost\"}}' |
+                -d '{\"route\": {\"home\": \"$2\", \"role\": \"owner\", \"holder\": \"$2\", \"url\": \"http://api.cumulus.$2.localhost\"}}' |
                 grep -q '\"holder\": \"$2\"' && echo '$1 joined $2'
         fi" 2>/dev/null
 }

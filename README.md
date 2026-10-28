@@ -86,7 +86,7 @@ when it is made; an existing cluster has to be deleted and made again (its data 
 ### Joining
 
 Two Unums that are joined read each other's records. Joining is a Route row in each Unum's `unum.route` for the other: the
-other as holder and owner of everything it made, at its cumulus api by name,
+records whose `home` is the other, owned by the other as `holder`, at its cumulus api by name,
 `http://api.cumulus.<unum>.localhost`. `make join` puts them in through unifist-unum's REST, so it's the app that writes
 them, and is safe to run again:
 
@@ -94,9 +94,9 @@ them, and is safe to run again:
     make test-route A=us B=them  # a record made in one is read from the other, once, with the id of the Unum that made it
 
 `make test-route` takes the join away first to show neither sees the other's records, then joins and checks both ways, and
-leaves them joined. Known: with the Unums joined both ways, every cumulus read in either one fails, each asking the other
-and the other asking back (relations-unum 0.4.3), so the test fails at its joined step until that is fixed; joined one way
-only (a row in `us` for `them`), `us` reads `them`'s records fine.
+leaves them joined. A record's `home` is the Unum that made it, the last part of its id; a query naming it (`home=us`) is
+what tells routing which Unums to ask, so a Unum answers from its own rows and the Unums joined to each other don't ask
+each other for ever.
 
 ### Browsers
 
