@@ -31,17 +31,16 @@ test: ## Proves the running Unum NAME is what its apps.yaml says
 	test/unum.sh $(NAME)
 
 # Prove each of FROM and TO reaches the other's unifist-unum, and its own, by name and no port, both clusters up.
+APPS?=unifist-unum cumulus
 FROM?=us
 TO?=them
 test-cross: ## Proves FROM and TO reach each other, and themselves, by name and no port
-	test/cross.sh $(FROM) $(TO)
-	test/cross.sh $(TO) $(FROM)
-	test/cross.sh $(FROM) $(FROM)
-	test/cross.sh $(TO) $(TO)
+	for app in $(APPS); do test/cross.sh $(FROM) $(TO) $$app && test/cross.sh $(TO) $(FROM) $$app && \
+	test/cross.sh $(FROM) $(FROM) $$app && test/cross.sh $(TO) $(TO) $$app || exit 1; done
 
 # Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
 test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
-	test/browser.sh $(NAME)
+	for app in $(APPS); do test/browser.sh $(NAME) $$app || exit 1; done
 
 # Prove an app can move between sources and keep its data, slow: make test-swap NAME=us APP=unifist-unum HASH=414f9ac, HASH
 # being a commit on the app's main and CHECKOUT (../../unum-apps/<app> unless given) its repo on disk.

@@ -68,6 +68,21 @@ while read -r app source value; do
         curl -fsS "http://localhost:$port/api/health" | grep -q OK || { echo "the GUI did not answer on localhost:$port"; exit 1; }
         echo "$app GUI answers on localhost:$port"
         ;;
+    cumulus)
+        databases=$(kubectl --context "$CTX" -n mysql exec deployment/mysql -- env MYSQL_PWD=root mysql -uroot -N -e 'SHOW DATABASES')
+        echo "$databases" | grep -qx cumulus || { echo "database cumulus was not made"; exit 1; }
+        echo "$app made cumulus"
+
+        # The config it reads is this Unum's: the routed source's own arguments.
+        kubectl --context "$CTX" -n "$app" get configmap config -o jsonpath='{.data.unum\.json}' | grep -q "\"unum\": \"$NAME\"" ||
+            { echo "cumulus config is not for $NAME"; exit 1; }
+
+        # And it routed its data here: a Route row for this Unum's cumulus, which unifist-unum made the table for.
+        routes=$(kubectl --context "$CTX" -n mysql exec deployment/mysql -- env MYSQL_PWD=root mysql -uroot -N -e \
+            "SELECT COUNT(*) FROM unum.route WHERE unum = '$NAME' AND source = 'cumulus' AND role = 'owner'")
+        test "$routes" = 1 || { echo "cumulus has $routes owner routes for $NAME, not 1"; exit 1; }
+        echo "$app routes its data to $NAME"
+        ;;
     esac
 done
 
