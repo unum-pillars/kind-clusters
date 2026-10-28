@@ -10,6 +10,9 @@ ACCOUNT = 'gaf3'
 
 PILLARS = ['mysql', 'redis']
 
+# The app whose api creates the schemas the others use.
+FIRST = 'unifist-unum'
+
 def get(url):
     return decode_json(str(local(['curl', '-fsS', url], quiet=True)))
 
@@ -113,6 +116,34 @@ def ingresses(name, yaml):
 
     return str(encode_yaml_stream(docs))
 
+def configured(name, app, yaml):
+    """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name."""
+
+    for doc in decode_yaml_stream(yaml):
+        if doc['kind'] != 'Deployment':
+            continue
+
+        for volume in doc['spec']['template']['spec'].get('volumes', []):
+            if volume.get('configMap', {}).get('name') == 'config':
+                return str(encode_yaml_stream([{
+                    'apiVersion': 'v1',
+                    'kind': 'ConfigMap',
+                    'metadata': {'name': 'config', 'namespace': app},
+                    'data': {'unum.json': '{"unum": "%s", "local": "%s-%s"}' % (name, app, name)},
+                }]))
+
+    return None
+
+def resource(counts, app, workload):
+    """Tilt's name for a workload: plain, or api:deployment:<namespace> when two apps each have one."""
+
+    return workload if counts[workload] == 1 else '%s:deployment:%s' % (workload, app)
+
+def where(path):
+    """A checkout's path: absolute as it is, or from the repo root."""
+
+    return path if path.startswith('/') else os.path.abspath(config.main_dir + '/../' + path)
+
 def unum():
     """Brings up the cluster whose folder holds the Tiltfile that called this."""
 
@@ -137,6 +168,8 @@ def unum():
 
     apps = read_yaml(config.main_dir + '/apps.yaml')
 
+    workloads = []
+
     for app in apps:
         source = apps[app]
 
@@ -153,14 +186,34 @@ def unum():
         elif 'hash' in source:
             yaml = hashed(app, str(source['hash']))
         elif 'checkout' in source:
-            yaml = checked_out(app, os.path.abspath(config.main_dir + '/../' + str(source['checkout'])))
+            yaml = checked_out(app, where(str(source['checkout'])))
         else:
             fail('%s in apps.yaml needs a tag, a hash or a checkout' % app)
 
         k8s_yaml(blob(yaml))
         k8s_yaml(blob(ingresses(name, yaml)))
 
-        # An app's first deploy needs the pillars, so its workloads wait for them.
+        config_yaml = configured(name, app, yaml)
+
+        if config_yaml:
+            k8s_yaml(blob(config_yaml))
+
         for doc in decode_yaml_stream(yaml):
             if doc['kind'] == 'Deployment':
-                k8s_resource(doc['metadata']['name'], resource_deps=PILLARS)
+                workloads.append((app, doc['metadata']['name']))
+
+    # Two apps can each have an api, which Tilt then names api:deployment:<namespace>.
+    counts = {}
+
+    for _, workload in workloads:
+        counts[workload] = counts.get(workload, 0) + 1
+
+    for app, workload in workloads:
+        # An app's first deploy needs the pillars, and unifist-unum, whose api migrates the unifist and unum schemas that
+        # every other app reads, so its workloads wait for them.
+        deps = list(PILLARS)
+
+        if app != FIRST and FIRST in apps:
+            deps.append(resource(counts, FIRST, 'api'))
+
+        k8s_resource(resource(counts, app, workload), resource_deps=deps)

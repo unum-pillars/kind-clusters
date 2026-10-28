@@ -30,9 +30,15 @@ A cluster is the pillars above plus the apps in its `apps.yaml`. Each app comes 
 A tag is the app's git tag and its Docker Hub image tag, so it pins the YAML and the image together. A hash has to be a
 commit on `main`, since that is all Jenkins publishes images for; code on a branch is a checkout. A checkout runs the
 repo's own `kubernetes/tilt` YAML, with its images built from the repo and loaded into the cluster, so changes to the
-code show up live while Tilt runs. Every app gets its namespace and the `secret` that points it at the cluster's MySQL
-from `unum.star`, the same whichever the source. What only some apps have, like a NodePort for browsers, is in
+code show up live while Tilt runs. Any files the repo generates for its image (cumulus's `api/ddl`, made by `make build`
+and `make ddl` in `api/`, as its own `make up` does) have to exist first. Every app gets its namespace and the `secret`
+that points it at the cluster's MySQL from `unum.star`, the same whichever the source. An app whose YAML mounts a
+ConfigMap named `config` gets one too, with `unum.json` holding the routed source's own arguments for this Unum,
+`{"unum": "<cluster>", "local": "<app>-<cluster>"}`. Every other app's workloads wait for `unifist-unum`, whose api
+creates the `unifist` and `unum` schemas they use. What only some apps have, like a NodePort for browsers, is in
 `apps/<app>/extra.yaml`.
+
+`us` and `them` each run `unifist-unum` and `cumulus` (its api and gui, the only parts it has) at tag 0.1.0.
 
     make up   NAME=us   # make the cluster if it's missing, then tilt up: everything in us/apps.yaml
     make ci   NAME=us   # the same, but wait until every workload is healthy and stop
