@@ -9,7 +9,7 @@ setup:
 	docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, then make setup again"; exit 1; }
 	@echo "ok"
 
-.PHONY: setup lint cluster up ci test test-cross down
+.PHONY: setup lint cluster up ci test test-cross test-swap test-add test-catalog catalog add down
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
 cluster:
@@ -36,6 +36,31 @@ test-cross:
 	test/cross.sh $(FROM) $(TO)
 	test/cross.sh $(TO) $(FROM)
 
+# Prove an app can move between sources and keep its data, slow: make test-swap NAME=us APP=unifist-unum HASH=414f9ac, HASH
+# being a commit on the app's main and CHECKOUT (../../unum-apps/<app> unless given) its repo on disk.
+HASH?=
+CHECKOUT?=../../unum-apps/$(APP)
+test-swap:
+	test -n "$(APP)" -a -n "$(HASH)"
+	test/swap.sh $(NAME) $(APP) $(HASH) $(CHECKOUT)
+
+# Prove scripts/add.sh offline, and scripts/catalog.sh against GitHub (needs gh).
+test-add:
+	test/add.sh
+
+test-catalog:
+	test/catalog.sh
+
+# The apps there could be, then pick one for a Unum. To move an app that's running, take it down first
+# (kubectl --context kind-$(NAME) delete namespace $(APP), its data is in MySQL and Redis and stays), then make add, then make up.
+TAG?=
+catalog:
+	scripts/catalog.sh
+
+add:
+	test -n "$(APP)" -a -n "$(NAME)"
+	scripts/add.sh $(NAME)/apps.yaml $(APP) $(if $(TAG),tag $(TAG),$(if $(HASH),hash $(HASH),checkout $(CHECKOUT)))
+
 # Delete the cluster. Its data in data/$(NAME) stays.
 down:
 	kind delete cluster --name $(NAME)
@@ -48,6 +73,6 @@ YAMLLINT=pipelinecomponents/yamllint:0.35.8
 lint:
 	for dir in $$(find . -name kustomization.yaml -not -path './data/*' -not -path './.git/*' -exec dirname {} \; | sort); do \
 	echo "kustomize $$dir"; docker run --rm -v "$$PWD:/work:ro" -w /work $(KUSTOMIZE) build $$dir >/dev/null || exit 1; done
-	scripts=$$(find test -name '*.sh' | sort); test -z "$$scripts" || docker run --rm -v "$$PWD:/work:ro" -w /work $(SHELLCHECK) $$scripts
+	scripts=$$(find test scripts -name '*.sh' | sort); test -z "$$scripts" || docker run --rm -v "$$PWD:/work:ro" -w /work $(SHELLCHECK) $$scripts
 	docker run --rm -v "$$PWD:/work:ro" -w /work $(YAMLLINT) yamllint --strict .
 	@echo "ok"

@@ -1,0 +1,34 @@
+# What unifist-unum has that not every app does: the NodePorts it is reached by. The app's own Services stay ClusterIP.
+# The ports every app uses are in the README, so no two clash.
+#
+# How another Unum reaches the API: <cluster>-control-plane:30465, from inside its cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-node
+  namespace: unifist-unum
+spec:
+  type: NodePort
+  selector:
+    app: api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    nodePort: 30465
+---
+# How a browser reaches the GUI: the cluster's kind.yaml maps this port to a port on the host, localhost:5465 for us.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gui-node
+  namespace: unifist-unum
+spec:
+  type: NodePort
+  selector:
+    app: gui
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    nodePort: 30466

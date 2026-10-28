@@ -7,10 +7,15 @@ pipeline {
     }
 
     stages {
-        // Offline checks only. The clusters themselves (make ci, test, test-cross) are run by hand before a merge.
+        // Offline checks only. The clusters themselves (make ci, test, test-cross, test-swap, test-catalog) are run by hand before a merge.
         stage('lint') {
             steps {
                 sh 'make lint'
+            }
+        }
+        stage('test') {
+            steps {
+                sh 'make test-add'
             }
         }
     }
