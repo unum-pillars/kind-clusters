@@ -9,17 +9,29 @@ APPS=$NAME/apps.yaml
 
 test -f "$APPS" || { echo "$APPS is missing"; exit 1; }
 
-# One "app tag" line per app in apps.yaml.
-awk '/^[^ #]/ {app=$1; sub(":", "", app)} /^  tag:/ {print app, $2}' "$APPS" | while read -r app tag; do
-    echo "== $app $tag"
+# One "app source value" line per app in apps.yaml, the source being tag, hash or checkout.
+awk '/^[^ #]/ {app=$1; sub(":", "", app)} /^  (tag|hash|checkout):/ {source=$1; sub(":", "", source); print app, source, $2}' "$APPS" |
+while read -r app source value; do
+    echo "== $app $source $value"
 
     for deployment in $(kubectl --context "$CTX" -n "$app" get deployments -o name); do
         kubectl --context "$CTX" -n "$app" rollout status "$deployment" --timeout=300s
 
         image=$(kubectl --context "$CTX" -n "$app" get "$deployment" -o jsonpath='{.spec.template.spec.containers[0].image}')
-        expected="gaf3/unum-apps-$app-${deployment#deployment.apps/}:$tag"
-        test "$image" = "$expected" || { echo "$deployment runs $image, not $expected"; exit 1; }
-        echo "$deployment runs $image"
+        part=${deployment#deployment.apps/}
+
+        # A tag or a hash is the published image at that tag or the hash's first 7 characters; a checkout is built here by Tilt.
+        case $source in
+        tag) expected="gaf3/unum-apps-$app-$part:$value" ;;
+        hash) expected="gaf3/unum-apps-$app-$part:$(echo "$value" | cut -c1-7)" ;;
+        checkout) expected="unum-apps-$app-$part:tilt-*" ;;
+        esac
+
+        # shellcheck disable=SC2254
+        case $image in
+        $expected) echo "$deployment runs $image" ;;
+        *) echo "$deployment runs $image, not $expected"; exit 1 ;;
+        esac
     done
 
     # The app answers inside the cluster, by its service name.
@@ -36,6 +48,11 @@ awk '/^[^ #]/ {app=$1; sub(":", "", app)} /^  tag:/ {print app, $2}' "$APPS" | w
             echo "$databases" | grep -qx "$database" || { echo "database $database was not made"; exit 1; }
         done
         echo "$app made unifist and unum"
+
+        # A browser reaches the GUI on this Unum's host port, see the port table in the README.
+        port=$(awk '/hostPort:/ {print $2}' "$NAME/kind.yaml")
+        curl -fsS "http://localhost:$port/api/health" | grep -q OK || { echo "the GUI did not answer on localhost:$port"; exit 1; }
+        echo "$app GUI answers on localhost:$port"
         ;;
     esac
 done
