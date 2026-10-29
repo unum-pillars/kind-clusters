@@ -83,10 +83,11 @@ pipeline {
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
-                    // Jenkins checks out a detached commit, so the tag is the version file's
+                    // Jenkins checks out a detached commit, so the tag is the version file's. The URL comes from git, since checkout scm
+                    // as a step doesn't put it in the environment
                     sh '''
                         git checkout -B main
-                        git remote set-url origin "https://$GH_USER:$GH_TOKEN@${GIT_URL#https://}"
+                        git remote set-url origin "https://$GH_USER:$GH_TOKEN@$(git remote get-url origin | sed 's|^https://||')"
                         make tag
                     '''
                 }
