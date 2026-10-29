@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6
+
+- `unifist-unum` and `cumulus` are pinned at `0.2.1` in `us/apps.yaml` and `them/apps.yaml`, which have relations-unifist 0.6.0 and relations-unum 0.6.0, so a record's title reads `Full Name (handle)`, with `@home` when it is from another Unum (unum-pillars/kind-clusters#27, unum-apps/unifist-unum#12).
+
 ## 0.2.5
 
 - The `tag` stage reads the repo's URL with `git remote get-url origin` instead of `$GIT_URL`. `checkout scm` as a step (since `clone` became its own stage) leaves `GIT_URL` unset in the shell, so the remote became `https://admin:****@` and the push failed with `unable to access 'https:///'`, and `0.2.2`, `0.2.3` and `0.2.4` were never tagged. `make test-stages` fails if the Jenkinsfile uses `GIT_URL` again (unum-pillars/kind-clusters#25).
