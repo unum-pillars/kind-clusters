@@ -5,7 +5,7 @@ set -e
 
 NAME=$1
 CTX=kind-$NAME
-APPS=$NAME/apps.yaml
+APPS=clusters/$NAME/apps.yaml
 
 test -f "$APPS" || { echo "$APPS is missing"; exit 1; }
 
@@ -64,7 +64,7 @@ while read -r app source value; do
         echo "$app made unifist and unum"
 
         # A browser reaches the GUI on this Unum's host port, see the port table in the README.
-        port=$(awk '/hostPort:/ {print $2}' "$NAME/kind.yaml")
+        port=$(awk '/hostPort:/ {print $2}' "clusters/$NAME/kind.yaml")
         curl -fsS "http://localhost:$port/api/health" | grep -q OK || { echo "the GUI did not answer on localhost:$port"; exit 1; }
         echo "$app GUI answers on localhost:$port"
         ;;

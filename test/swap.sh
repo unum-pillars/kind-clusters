@@ -10,7 +10,7 @@ APP=$2
 HASH=$3
 CHECKOUT=$4
 CTX=kind-$NAME
-APPS=$NAME/apps.yaml
+APPS=clusters/$NAME/apps.yaml
 
 SAVED=$(mktemp)
 cp "$APPS" "$SAVED"

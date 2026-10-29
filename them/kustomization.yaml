@@ -1,6 +1,0 @@
-# What runs in the them cluster: kubectl --context kind-them apply -k them
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-- ../mysql
-- ../redis

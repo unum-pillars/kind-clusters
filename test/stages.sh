@@ -32,9 +32,11 @@ make tools
 make down NAME=us
 make ci NAME=us
 make test NAME=us
+make test-certificates NAME=us
 make down NAME=them
 make ci NAME=them
 make test NAME=them
+make test-certificates NAME=them
 make test-cross
 make test-route
 make test-write"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.7
+
+- Each Unum has cert-manager, its own self-signed root authority (named for the Unum, valid ten years) and the ClusterIssuer `unum` that signs with that root, so a Unum can issue certificates. `scripts/cert-manager.sh` applies cert-manager v1.21.3 server side (its CRDs are too big for a client side apply), waits for it, then the root and the issuer; Tilt runs it as the `cert-manager` resource. `make test-certificates NAME=us` proves it by asking for a certificate from `unum` and checking, with openssl in a container, that it is signed by the Unum's root, and Jenkins runs it in each Unum's lane after `make test`. The root is made in the cluster for now, so a rebuilt cluster gets a new one; keeping its key outside the cluster comes later (unum-pillars/unum#3).
+- The folders are organized: `pillars/` holds what apps use (`mysql/`, `redis/` and `cert-manager/`) and `clusters/` holds `us/` and `them/`. `ingress/`, `coredns/` and `route/` are plumbing and stay at the root with `apps/`, `scripts/`, `test/` and `data/`. The commands are the same (`make up NAME=us`); `NAME` is still the cluster's name, and `checkout:` paths in `apps.yaml` are still from the repo root (unum-pillars/kind-clusters#29).
+
 ## 0.2.6
 
 - `unifist-unum` and `cumulus` are pinned at `0.2.1` in `us/apps.yaml` and `them/apps.yaml`, which have relations-unifist 0.6.0 and relations-unum 0.6.0, so a record's title reads `Full Name (handle)`, with `@home` when it is from another Unum (unum-pillars/kind-clusters#27, unum-apps/unifist-unum#12).

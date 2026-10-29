@@ -11,26 +11,30 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
+.PHONY: setup lint cluster up ci test test-certificates test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
 # (kind-$(NAME)) and none switches the kubectl context, so two Unums can come up at once.
 cluster: ## Makes the Unum cluster NAME if it is missing
-	test -f $(NAME)/kind.yaml
+	test -f clusters/$(NAME)/kind.yaml
 	mkdir -p data/$(NAME)
-	kind get clusters | grep -qx $(NAME) || kind create cluster --name $(NAME) --config $(NAME)/kind.yaml
+	kind get clusters | grep -qx $(NAME) || kind create cluster --name $(NAME) --config clusters/$(NAME)/kind.yaml
 
 # Bring the Unum up and keep Tilt running, or (ci) wait until everything is ready and stop.
 up: cluster ## Brings the Unum NAME up and keeps Tilt running
-	tilt up --context kind-$(NAME) -f $(NAME)/Tiltfile
+	tilt up --context kind-$(NAME) -f clusters/$(NAME)/Tiltfile
 
 ci: cluster ## Brings the Unum NAME up, waits until everything is healthy, and stops
-	tilt ci --context kind-$(NAME) --port 0 -f $(NAME)/Tiltfile --timeout 15m
+	tilt ci --context kind-$(NAME) --port 0 -f clusters/$(NAME)/Tiltfile --timeout 15m
 
 # Prove the running Unum is what its apps.yaml says.
 test: ## Proves the running Unum NAME is what its apps.yaml says
 	test/unum.sh $(NAME)
+
+# Prove the running Unum can issue a certificate, signed by its own root.
+test-certificates: ## Proves the running Unum NAME issues certificates, signed by its own root
+	test/certificates.sh $(NAME)
 
 # Prove each of FROM and TO reaches the other's unifist-unum, and its own, by name and no port, both clusters up.
 APPS?=unifist-unum cumulus
@@ -88,9 +92,9 @@ TAG?=
 catalog: ## Lists the unum-apps repos with their tags
 	scripts/catalog.sh
 
-add: ## Puts APP in NAME/apps.yaml from TAG, HASH or CHECKOUT
+add: ## Puts APP in clusters/NAME/apps.yaml from TAG, HASH or CHECKOUT
 	test -n "$(APP)" -a -n "$(NAME)"
-	scripts/add.sh $(NAME)/apps.yaml $(APP) $(if $(TAG),tag $(TAG),$(if $(HASH),hash $(HASH),checkout $(CHECKOUT)))
+	scripts/add.sh clusters/$(NAME)/apps.yaml $(APP) $(if $(TAG),tag $(TAG),$(if $(HASH),hash $(HASH),checkout $(CHECKOUT)))
 
 # Put kind, kubectl and tilt in bin/ when the machine has none, as the Jenkins agent has none. Pinned to what the clusters are tested with.
 tools: ## Puts kind, kubectl and tilt in bin/ when they are missing
@@ -123,4 +127,4 @@ lint: ## Builds the kustomizations, shellchecks the scripts, yamllints, in Docke
 	@echo "ok"
 
 help: ## Lists the targets
-	@awk -F ':.*## ' '/^[a-z-]+:.*## /{printf "%-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk -F ':.*## ' '/^[a-z-]+:.*## /{printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
