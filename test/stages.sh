@@ -1,7 +1,7 @@
 #!/bin/sh
 # Prove the Jenkinsfile is one-for-one: every step runs exactly one make command, and the stages group them by function, nested the way
 # we want, so a red row is one command, in one stage, in one Unum. The stages are clone (what gets the code into an empty workspace),
-# verify (everything that needs no cluster, and the tools the clusters need), clusters (unums with an us and a them lane, then across)
+# within (everything that needs no cluster, and the tools the clusters need), clusters (unums with an us and a them lane, then across)
 # and tag. The only steps that aren't a make command are in clone (a docker run that removes what a run left in the workspace, which
 # would stop the checkout, and the checkout), the cleanup after the clusters, and the tag. Usage: test/stages.sh. It reads the
 # Jenkinsfile as laid out, so the layout has to stay put.
@@ -10,7 +10,7 @@ set -e
 actual=$(grep -E "^ *stage\('" Jenkinsfile | sed -E "s/^( *)stage\('([^']*)'\).*/\1|\2/" | awk -F'|' '{print length($1) " " $2}')
 
 expected="8 clone
-8 verify
+8 within
 8 clusters
 16 unums
 24 us

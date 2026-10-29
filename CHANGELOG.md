@@ -2,7 +2,7 @@
 
 ## 0.2.4
 
-- The Jenkinsfile groups its stages by function and has one step for each make command, so the graph is four bubbles and a pair of lanes, and each command is its own collapsible row with its own status, time and log: `clone` (the clean, then the checkout), `verify` (`lint`, `test-add`, `test-version`, `test-context`, `test-stages` and `tools`), `clusters` (an `us` and a `them` lane side by side, each `down`, `ci` and `test`, then `across` with `test-cross`, `test-route` and `test-write`) and `tag`. `make test-stages` proves the stages and the order of the make commands, and that nothing else is run but the clean, the cleanup and the tag (unum-pillars/kind-clusters#23).
+- The Jenkinsfile groups its stages by function and has one step for each make command, so the graph is four bubbles and a pair of lanes, and each command is its own collapsible row with its own status, time and log: `clone` (the clean, then the checkout), `within` (`lint`, `test-add`, `test-version`, `test-context`, `test-stages` and `tools`), `clusters` (an `us` and a `them` lane side by side, each `down`, `ci` and `test`, then `across` with `test-cross`, `test-route` and `test-write`) and `tag`. `make test-stages` proves the stages and the order of the make commands, and that nothing else is run but the clean, the cleanup and the tag (unum-pillars/kind-clusters#23).
 - The clean runs before the checkout and removes `data/` with a docker run, and the checkout is a step of its own (`skipDefaultCheckout`). The clusters' databases are root's, and a run that was stopped before its cleanup left them behind, so the next checkout's `git clean` failed with `Permission denied` and `main` could not build. Whatever happened last time, the workspace is now cleaned first.
 
 ## 0.2.3

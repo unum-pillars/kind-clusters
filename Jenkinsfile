@@ -10,7 +10,7 @@ pipeline {
 
     stages {
         // One step for each make command, in stages grouped by function, so a red row is one command, in one stage, in one Unum.
-        // Clone, then verify everything that needs no cluster, then the two Unums, brought up and proved. test-browser needs the
+        // Clone, then everything within the repo that needs no cluster, then the two Unums, brought up and proved, and across them. test-browser needs the
         // permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
         stage('clone') {
             // The clusters' databases in data/ are root's, and a run that was stopped before its cleanup leaves them, which the
@@ -20,7 +20,7 @@ pipeline {
                 checkout scm
             }
         }
-        stage('verify') {
+        stage('within') {
             steps {
                 sh 'make lint'
                 sh 'make test-add'
