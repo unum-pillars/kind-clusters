@@ -46,4 +46,8 @@ others=$(grep -E "^ *sh " Jenkinsfile | grep -vE "^ *sh 'make [^;]*'$" | grep -v
 
 test -z "$others" || { echo "the Jenkinsfile runs commands that aren't make commands:"; echo "$others"; exit 1; }
 
+# And the tag gets the repo's URL from git, because checkout scm as a step leaves GIT_URL unset in the shell, and the push goes to https:///
+! grep -q 'GIT_URL' Jenkinsfile || { echo "the Jenkinsfile uses GIT_URL, which is empty after checkout scm. Use git remote get-url origin"; exit 1; }
+grep -q 'git remote get-url origin' Jenkinsfile || { echo "the tag stage doesn't read the URL from git remote get-url origin"; exit 1; }
+
 echo "stages are as wanted, one make command for each step"

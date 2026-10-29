@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5
+
+- The `tag` stage reads the repo's URL with `git remote get-url origin` instead of `$GIT_URL`. `checkout scm` as a step (since `clone` became its own stage) leaves `GIT_URL` unset in the shell, so the remote became `https://admin:****@` and the push failed with `unable to access 'https:///'`, and `0.2.2`, `0.2.3` and `0.2.4` were never tagged. `make test-stages` fails if the Jenkinsfile uses `GIT_URL` again (unum-pillars/kind-clusters#25).
+
 ## 0.2.4
 
 - The Jenkinsfile groups its stages by function and has one step for each make command, so the graph is four bubbles and a pair of lanes, and each command is its own collapsible row with its own status, time and log: `clone` (the clean, then the checkout), `within` (`lint`, `test-add`, `test-version`, `test-context`, `test-stages` and `tools`), `clusters` (an `us` and a `them` lane side by side, each `down`, `ci` and `test`, then `across` with `test-cross`, `test-route` and `test-write`) and `tag`. `make test-stages` proves the stages and the order of the make commands, and that nothing else is run but the clean, the cleanup and the tag (unum-pillars/kind-clusters#23).
