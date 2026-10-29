@@ -17,22 +17,44 @@ pipeline {
             steps {
                 sh 'make test-add'
                 sh 'make test-version'
+                sh 'make test-context'
             }
         }
         stage('clusters') {
-            // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them
+            // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them. Every call
+            // names its cluster, so the two Unums come up at once, each doing ci then test, and the cross tests wait for both
             environment {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
-            steps {
-                sh 'scripts/tools.sh'
-                sh 'make down NAME=us; make down NAME=them; true'
-                sh 'make ci NAME=us'
-                sh 'make ci NAME=them'
-                sh 'make test NAME=us'
-                sh 'make test NAME=them'
-                sh 'make test-cross'
-                sh 'make test-route'
+            stages {
+                stage('tools') {
+                    steps {
+                        sh 'scripts/tools.sh'
+                        sh 'make down NAME=us; make down NAME=them; true'
+                    }
+                }
+                stage('unums') {
+                    parallel {
+                        stage('us') {
+                            steps {
+                                sh 'make ci NAME=us'
+                                sh 'make test NAME=us'
+                            }
+                        }
+                        stage('them') {
+                            steps {
+                                sh 'make ci NAME=them'
+                                sh 'make test NAME=them'
+                            }
+                        }
+                    }
+                }
+                stage('across') {
+                    steps {
+                        sh 'make test-cross'
+                        sh 'make test-route'
+                    }
+                }
             }
             post {
                 always {

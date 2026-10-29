@@ -11,22 +11,22 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version catalog add down tag untag help
+.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version test-context catalog add down tag untag help
 .DEFAULT_GOAL := help
 
-# The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
+# The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
+# (kind-$(NAME)) and none switches the kubectl context, so two Unums can come up at once.
 cluster: ## Makes the Unum cluster NAME if it is missing
 	test -f $(NAME)/kind.yaml
 	mkdir -p data/$(NAME)
 	kind get clusters | grep -qx $(NAME) || kind create cluster --name $(NAME) --config $(NAME)/kind.yaml
-	kubectl config use-context kind-$(NAME)
 
 # Bring the Unum up and keep Tilt running, or (ci) wait until everything is ready and stop.
 up: cluster ## Brings the Unum NAME up and keeps Tilt running
-	tilt up -f $(NAME)/Tiltfile
+	tilt up --context kind-$(NAME) -f $(NAME)/Tiltfile
 
 ci: cluster ## Brings the Unum NAME up, waits until everything is healthy, and stops
-	tilt ci -f $(NAME)/Tiltfile --timeout 15m
+	tilt ci --context kind-$(NAME) --port 0 -f $(NAME)/Tiltfile --timeout 15m
 
 # Prove the running Unum is what its apps.yaml says.
 test: ## Proves the running Unum NAME is what its apps.yaml says
@@ -71,6 +71,9 @@ test-catalog: ## Proves scripts/catalog.sh against GitHub
 
 test-version: ## Proves VERSION is x.y.z and CHANGELOG.md starts at it
 	test/version.sh
+
+test-context: ## Proves make up and make ci name their cluster and nothing switches the kubectl context
+	test/context.sh
 
 # The apps there could be, then pick one for a Unum. To move an app that's running, take it down first
 # (kubectl --context kind-$(NAME) delete namespace $(APP), its data is in MySQL and Redis and stays), then make add, then make up.

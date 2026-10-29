@@ -48,6 +48,8 @@ creates the `unifist` and `unum` schemas they use. What only some apps have, lik
     make test-cross FROM=us TO=them   # each reaches the other, and itself, by name and no port
     make test-browser NAME=us         # this machine reaches it by name on port 80, the ingress cluster up
 
+Every call names its cluster (`kind-<name>`, given to `tilt` as `--context`) and none changes your kubectl context, so two Unums can come up at once.
+
 Needs Tilt too: `make setup` installs it.
 
 ### Choosing apps
