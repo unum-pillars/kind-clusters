@@ -101,6 +101,11 @@ that a read of everything answers within 5 seconds, and leaves them joined. A re
 what tells routing which Unums to ask, so a Unum answers from its own rows and the Unums joined to each other don't ask
 each other for ever.
 
+Writes work one way for now: the Unum that owns a record writes it, and the others read each change at once, from the owner, with
+one version bump and one journal entry for each write (`make test-write A=us B=them` proves it, each taking a turn as the owner).
+A write from a Unum that doesn't own the record isn't supported yet: it lands in the owner, but bumps the version twice and journals
+twice (relations-dil/python-relations-unifist#19).
+
 ### Browsers
 
 The same names work in a browser on your Mac, on port 80. The ingress cluster from
