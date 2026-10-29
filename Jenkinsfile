@@ -10,31 +10,24 @@ pipeline {
 
     stages {
         // One step for each make command, in stages grouped by function, so a red row is one command, in one stage, in one Unum.
-        // The checks that need no cluster come first, then the two Unums, brought up and proved. test-browser needs the permanent
-        // ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
-        stage('clean') {
+        // Clone, then verify everything that needs no cluster, then the two Unums, brought up and proved. test-browser needs the
+        // permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
+        stage('clone') {
             // The clusters' databases in data/ are root's, and a run that was stopped before its cleanup leaves them, which the
-            // checkout's git clean can't remove. So it is removed before the checkout, whatever happened last time
+            // checkout's git clean can't remove. So data/ is removed before the checkout, whatever happened last time
             steps {
                 sh 'docker run --rm -v "$PWD:/workspace" busybox:1.36 sh -c "rm -rf /workspace/data"'
-            }
-        }
-        stage('checkout') {
-            steps {
                 checkout scm
             }
         }
-        stage('lint') {
+        stage('verify') {
             steps {
                 sh 'make lint'
-            }
-        }
-        stage('checks') {
-            steps {
                 sh 'make test-add'
                 sh 'make test-version'
                 sh 'make test-context'
                 sh 'make test-stages'
+                sh 'make tools'
             }
         }
         stage('clusters') {
@@ -45,11 +38,6 @@ pipeline {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
             stages {
-                stage('tools') {
-                    steps {
-                        sh 'make tools'
-                    }
-                }
                 stage('unums') {
                     parallel {
                         stage('us') {
