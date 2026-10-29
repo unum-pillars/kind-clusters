@@ -142,7 +142,7 @@ def resource(counts, app, workload):
 def where(path):
     """A checkout's path: absolute as it is, or from the repo root."""
 
-    return path if path.startswith('/') else os.path.abspath(config.main_dir + '/../' + path)
+    return path if path.startswith('/') else os.path.abspath(config.main_dir + '/../../' + path)
 
 def unum():
     """Brings up the cluster whose folder holds the Tiltfile that called this."""
@@ -158,13 +158,18 @@ def unum():
 
     # The ingress and the names, once the cluster is up; its CRDs need a server side apply, which Tilt's YAML doesn't do.
     local_resource(
-        'ingress', cmd=['scripts/ingress.sh', name], deps=[config.main_dir + '/../' + path for path in ['ingress', 'coredns', 'scripts/ingress.sh']],
-        dir=config.main_dir + '/..')
+        'ingress', cmd=['scripts/ingress.sh', name], deps=[config.main_dir + '/../../' + path for path in ['ingress', 'coredns', 'scripts/ingress.sh']],
+        dir=config.main_dir + '/../..')
+
+    # cert-manager, and the Unum's own root and issuer, once the cluster is up; its CRDs need a server side apply too.
+    local_resource(
+        'cert-manager', cmd=['scripts/cert-manager.sh', name], deps=[config.main_dir + '/../../pillars/cert-manager', config.main_dir + '/../../scripts/cert-manager.sh'],
+        dir=config.main_dir + '/../..')
 
     # The ingress cluster, if there is one, sends this Unum's names here, so a browser uses the names pods do.
     local_resource(
-        'route', cmd=['scripts/route.sh', name], deps=[config.main_dir + '/../route', config.main_dir + '/../scripts/route.sh'],
-        dir=config.main_dir + '/..')
+        'route', cmd=['scripts/route.sh', name], deps=[config.main_dir + '/../../route', config.main_dir + '/../../scripts/route.sh'],
+        dir=config.main_dir + '/../..')
 
     apps = read_yaml(config.main_dir + '/apps.yaml')
 
@@ -176,7 +181,7 @@ def unum():
         k8s_yaml(blob(around(app)))
 
         # What only some apps have, like the NodePorts other Unums and browsers reach them by.
-        extra = config.main_dir + '/../apps/%s/extra.yaml' % app
+        extra = config.main_dir + '/../../apps/%s/extra.yaml' % app
 
         if os.path.exists(extra):
             k8s_yaml(extra)

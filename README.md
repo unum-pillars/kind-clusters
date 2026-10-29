@@ -1,16 +1,19 @@
 # kind-clusters
 Listing of different clusters so spin up to use for Unum testing
 
-One folder per cluster:
+One folder per cluster, in `clusters/`:
 
-- `us/`
-- `them/`
+- `clusters/us/`
+- `clusters/them/`
 
 `we/` comes later, a third unum apart from these two. A cluster folder holds `kind.yaml` for the cluster and a
-`kustomization.yaml` listing what runs in it, picked from the shared folders:
+`kustomization.yaml` listing what runs in it, picked from `pillars/`, what the apps use:
 
-- `mysql/`: MySQL at `mysql.mysql:3306`, root/root.
-- `redis/`: Redis at `redis.redis:6379`, no password, append-only.
+- `pillars/mysql/`: MySQL at `mysql.mysql:3306`, root/root.
+- `pillars/redis/`: Redis at `redis.redis:6379`, no password, append-only.
+- `pillars/cert-manager/`: cert-manager, and each Unum's own self-signed root (named for the Unum) and the ClusterIssuer `unum` that signs with it, so a Unum issues certificates. `make test-certificates NAME=us` proves it. It's applied by `scripts/cert-manager.sh`, not by the cluster's `kustomization.yaml`, since its CRDs need a server side apply.
+
+The plumbing that makes a Unum reachable stays at the root: `ingress/`, `coredns/` and `route/`.
 
 Local dev only, the password is public on purpose.
 
@@ -40,7 +43,7 @@ creates the `unifist` and `unum` schemas they use. What only some apps have, lik
 
 `us` and `them` each run `unifist-unum` and `cumulus` (its api and gui, the only parts it has) at tag 0.1.0.
 
-    make up   NAME=us   # make the cluster if it's missing, then tilt up: everything in us/apps.yaml
+    make up   NAME=us   # make the cluster if it's missing, then tilt up: everything in clusters/us/apps.yaml
     make ci   NAME=us   # the same, but wait until every workload is healthy and stop
     make test NAME=us   # prove it: the ingress, the images, the names, /health answers, the databases, the GUI on its host port
     make down NAME=us   # delete the cluster, its data in data/us stays
@@ -57,7 +60,7 @@ Needs Tilt too: `make setup` installs it.
 The apps there could be are the repos of the `unum-apps` org, and their versions are those repos' tags:
 
     make catalog                                           # every repo with its tags (needs gh)
-    make add NAME=us APP=ledger TAG=0.1.5                  # writes it into us/apps.yaml
+    make add NAME=us APP=ledger TAG=0.1.5                  # writes it into clusters/us/apps.yaml
     make add NAME=us APP=ledger HASH=1270925
     make add NAME=us APP=ledger CHECKOUT=../../unum-apps/ledger
 
@@ -133,8 +136,8 @@ port from this table so no two clash. A pod in `us` can call `http://them-contro
 
 From the directory you want the data in (it goes in `data/<name>`):
 
-    kind create cluster --name us --config us/kind.yaml
-    kubectl --context kind-us apply -k us
+    kind create cluster --name us --config clusters/us/kind.yaml
+    kubectl --context kind-us apply -k clusters/us
 
 Once, to install kind, kubectl and Docker Desktop:
 
@@ -164,11 +167,11 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
     make test-version
 
 `make lint`, `make test-add`, `make test-version`, `make test-context` and `make test-stages` need only Docker and the network
-(`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, the
+(`ingress/` pulls kind-ingress and `pillars/cert-manager/` the cert-manager release from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, the
 YAML passes yamllint (`.yamllint`), `test-add` proves `scripts/add.sh`, `test-version` the version, `test-context` that nothing
 switches your kubectl context, and `test-stages` the shape of the Jenkinsfile. Jenkins runs them on every push, and then brings up
 `us` and `them` on its agent from their `apps.yaml` tags and runs `make test` for each, then `make test-cross`, `make test-route` and
-`make test-write` (`make tools` puts kind, kubectl and tilt on the agent if it has none). It runs one step for each make command, in
+`make test-write`, and `make test-certificates` in each lane (`make tools` puts kind, kubectl and tilt on the agent if it has none). It runs one step for each make command, in
 stages grouped by function, so each command is a collapsible row and a red row is one command. What Jenkins doesn't run, run yourself
 before merging: `make test-browser` (it needs the ingress cluster that holds ports 80 and 443 on a Mac), and for anything about where
 an app comes from, `make test-swap` and `make test-catalog`.

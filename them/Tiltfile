@@ -1,4 +1,0 @@
-# tilt up -f them/Tiltfile, or make up NAME=them
-load('../unum.star', 'unum')
-
-unum()

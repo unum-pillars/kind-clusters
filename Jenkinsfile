@@ -45,6 +45,7 @@ pipeline {
                                 sh 'make down NAME=us'
                                 sh 'make ci NAME=us'
                                 sh 'make test NAME=us'
+                                sh 'make test-certificates NAME=us'
                             }
                         }
                         stage('them') {
@@ -52,6 +53,7 @@ pipeline {
                                 sh 'make down NAME=them'
                                 sh 'make ci NAME=them'
                                 sh 'make test NAME=them'
+                                sh 'make test-certificates NAME=them'
                             }
                         }
                     }
