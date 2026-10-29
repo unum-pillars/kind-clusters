@@ -163,10 +163,12 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
     make test-add
     make test-version
 
-`make lint`, `make test-add` and `make test-version` need only Docker and the network (`ingress/` pulls kind-ingress from GitHub): every
-`kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, the YAML passes yamllint (`.yamllint`), `test-add`
-proves `scripts/add.sh`, and `test-version` the version. Jenkins runs them on every push, and then a `clusters` stage, one Jenkins stage for each make command so a red bubble is one act, brings up
-`us` and `them` on its agent from their `apps.yaml` tags and runs `make test` for each, `make test-cross` and `make test-route`
-(`make tools` puts kind, kubectl and tilt on the agent if it has none). What Jenkins doesn't run, run yourself before
-merging: `make test-browser` (it needs the ingress cluster that holds ports 80 and 443 on a Mac), and for anything about where an
-app comes from, `make test-swap` and `make test-catalog`.
+`make lint`, `make test-add`, `make test-version`, `make test-context` and `make test-stages` need only Docker and the network
+(`ingress/` pulls kind-ingress from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, the
+YAML passes yamllint (`.yamllint`), `test-add` proves `scripts/add.sh`, `test-version` the version, `test-context` that nothing
+switches your kubectl context, and `test-stages` the shape of the Jenkinsfile. Jenkins runs them on every push, and then brings up
+`us` and `them` on its agent from their `apps.yaml` tags and runs `make test` for each, then `make test-cross`, `make test-route` and
+`make test-write` (`make tools` puts kind, kubectl and tilt on the agent if it has none). It runs one step for each make command, in
+stages grouped by function, so each command is a collapsible row and a red row is one command. What Jenkins doesn't run, run yourself
+before merging: `make test-browser` (it needs the ingress cluster that holds ports 80 and 443 on a Mac), and for anything about where
+an app comes from, `make test-swap` and `make test-catalog`.
