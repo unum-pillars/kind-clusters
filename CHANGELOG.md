@@ -2,7 +2,7 @@
 
 ## 0.2.2
 
-- In the Jenkins `clusters` stage, `up` and `test` are stages of their own inside each Unum lane (`unums`, then `us` and `them` side by side, each `up` then `test`, then `across`), so a failure shows which act broke and in which Unum from the stage alone (unum-pillars/kind-clusters#20). `make test-stages` proves the stage shape, and Jenkins runs it.
+- The Jenkinsfile is one-for-one: every stage runs exactly one make command, so a red bubble is one act, in one Unum, and nothing else. The checks are `test-add`, `test-version`, `test-context` and `test-stages`; the `clusters` stage is `tools`, then `unums` with an `us` and a `them` lane side by side, each `down`, `up` and `test`, then `test-cross` and `test-route`. `make tools` runs `scripts/tools.sh`. `make test-stages` proves the stage shape and that no stage runs two commands, and Jenkins runs it (unum-pillars/kind-clusters#20).
 
 ## 0.2.1
 

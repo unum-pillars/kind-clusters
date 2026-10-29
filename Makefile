@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tag untag help
+.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -87,6 +87,10 @@ catalog: ## Lists the unum-apps repos with their tags
 add: ## Puts APP in NAME/apps.yaml from TAG, HASH or CHECKOUT
 	test -n "$(APP)" -a -n "$(NAME)"
 	scripts/add.sh $(NAME)/apps.yaml $(APP) $(if $(TAG),tag $(TAG),$(if $(HASH),hash $(HASH),checkout $(CHECKOUT)))
+
+# Put kind, kubectl and tilt in bin/ when the machine has none, as the Jenkins agent has none. Pinned to what the clusters are tested with.
+tools: ## Puts kind, kubectl and tilt in bin/ when they are missing
+	scripts/tools.sh
 
 # Delete the cluster. Its data in data/$(NAME) stays.
 down: ## Deletes the cluster NAME, its data stays

@@ -7,38 +7,60 @@ pipeline {
     }
 
     stages {
-        // The checks that need no cluster first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
+        // One stage for each make command, so a red bubble is one act, in one Unum, and nothing else. The checks that need no cluster
+        // come first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and
+        // test-catalog are slow or need GitHub, so those are run by hand before a merge.
         stage('lint') {
             steps {
                 sh 'make lint'
             }
         }
-        stage('test') {
-            steps {
-                sh 'make test-add'
-                sh 'make test-version'
-                sh 'make test-context'
-                sh 'make test-stages'
+        stage('checks') {
+            stages {
+                stage('test-add') {
+                    steps {
+                        sh 'make test-add'
+                    }
+                }
+                stage('test-version') {
+                    steps {
+                        sh 'make test-version'
+                    }
+                }
+                stage('test-context') {
+                    steps {
+                        sh 'make test-context'
+                    }
+                }
+                stage('test-stages') {
+                    steps {
+                        sh 'make test-stages'
+                    }
+                }
             }
         }
         stage('clusters') {
             // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them. Every call
-            // names its cluster, so the two Unums come up at once, each lane doing up then test as stages of their own, so a
-            // failure shows which act broke and in which Unum, and the cross tests wait for both lanes
+            // names its cluster, so the two Unums come up at once, each lane doing down, up and test as stages of their own, and
+            // the cross tests wait for both lanes
             environment {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
             stages {
                 stage('tools') {
                     steps {
-                        sh 'scripts/tools.sh'
-                        sh 'make down NAME=us; make down NAME=them; true'
+                        sh 'make tools'
                     }
                 }
                 stage('unums') {
                     parallel {
                         stage('us') {
                             stages {
+                                stage('down') {
+                                    steps {
+                                        sh 'make down NAME=us'
+                                    }
+                                }
                                 stage('up') {
                                     steps {
                                         sh 'make ci NAME=us'
@@ -53,6 +75,11 @@ pipeline {
                         }
                         stage('them') {
                             stages {
+                                stage('down') {
+                                    steps {
+                                        sh 'make down NAME=them'
+                                    }
+                                }
                                 stage('up') {
                                     steps {
                                         sh 'make ci NAME=them'
@@ -67,9 +94,13 @@ pipeline {
                         }
                     }
                 }
-                stage('across') {
+                stage('test-cross') {
                     steps {
                         sh 'make test-cross'
+                    }
+                }
+                stage('test-route') {
+                    steps {
                         sh 'make test-route'
                     }
                 }
