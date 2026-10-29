@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- `make up` and `make ci` name their cluster in the call (`tilt --context kind-<name>`) and nothing switches the kubectl context any more, so two Unums can come up at once (`make ci` also runs Tilt without its web UI, since two Tilts can't share its port). `make test-context` proves it, and Jenkins runs it. The guard in `unum.star` still checks that Tilt is on `kind-<name>`, and its message says to run it with `--context`.
+- The Jenkins `clusters` stage runs `us` and `them` in parallel, each `make ci` then `make test`, and then `make test-cross` and `make test-route` once both are up (unum-pillars/kind-clusters#17).
+
 ## 0.2.0
 
 - Joined Unums: `make join A=us B=them` puts a Route row in each Unum's `unum.route` for the other (the records whose `home` is the other, owned by it as `holder`, at its cumulus api by name, no port), through unifist-unum's REST, safe to run again. `make test-route` proves a cumulus record made in one is read from the other once, with the id of the Unum that made it and held only there, that neither sees the other's before they are joined, that records made in both Unums come back merged in order (and in reverse) from either side, and that a read of everything answers 200 within 5 seconds, so joined Unums asking each other for ever would fail it (unum-pillars/kind-clusters#13).

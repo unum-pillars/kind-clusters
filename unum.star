@@ -150,7 +150,7 @@ def unum():
     name = os.path.basename(config.main_dir)
 
     if k8s_context() != 'kind-' + name:
-        fail('%s is for kind-%s, not %s: kubectl config use-context kind-%s' % (name, name, k8s_context(), name))
+        fail('%s is for kind-%s, not %s: run it with tilt --context kind-%s' % (name, name, k8s_context(), name))
 
     watch_file(config.main_dir + '/apps.yaml')
 
