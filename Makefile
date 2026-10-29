@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version test-context catalog add down tag untag help
+.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -74,6 +74,9 @@ test-version: ## Proves VERSION is x.y.z and CHANGELOG.md starts at it
 
 test-context: ## Proves make up and make ci name their cluster and nothing switches the kubectl context
 	test/context.sh
+
+test-stages: ## Proves the Jenkinsfile has up and test as stages inside each Unum lane
+	test/stages.sh
 
 # The apps there could be, then pick one for a Unum. To move an app that's running, take it down first
 # (kubectl --context kind-$(NAME) delete namespace $(APP), its data is in MySQL and Redis and stays), then make add, then make up.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- In the Jenkins `clusters` stage, `up` and `test` are stages of their own inside each Unum lane (`unums`, then `us` and `them` side by side, each `up` then `test`, then `across`), so a failure shows which act broke and in which Unum from the stage alone (unum-pillars/kind-clusters#20). `make test-stages` proves the stage shape, and Jenkins runs it.
+
 ## 0.2.1
 
 - `make up` and `make ci` name their cluster in the call (`tilt --context kind-<name>`) and nothing switches the kubectl context any more, so two Unums can come up at once (`make ci` also runs Tilt without its web UI, since two Tilts can't share its port). `make test-context` proves it, and Jenkins runs it. The guard in `unum.star` still checks that Tilt is on `kind-<name>`, and its message says to run it with `--context`.

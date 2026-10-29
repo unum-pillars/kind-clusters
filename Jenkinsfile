@@ -18,11 +18,13 @@ pipeline {
                 sh 'make test-add'
                 sh 'make test-version'
                 sh 'make test-context'
+                sh 'make test-stages'
             }
         }
         stage('clusters') {
             // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them. Every call
-            // names its cluster, so the two Unums come up at once, each doing ci then test, and the cross tests wait for both
+            // names its cluster, so the two Unums come up at once, each lane doing up then test as stages of their own, so a
+            // failure shows which act broke and in which Unum, and the cross tests wait for both lanes
             environment {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
@@ -36,15 +38,31 @@ pipeline {
                 stage('unums') {
                     parallel {
                         stage('us') {
-                            steps {
-                                sh 'make ci NAME=us'
-                                sh 'make test NAME=us'
+                            stages {
+                                stage('up') {
+                                    steps {
+                                        sh 'make ci NAME=us'
+                                    }
+                                }
+                                stage('test') {
+                                    steps {
+                                        sh 'make test NAME=us'
+                                    }
+                                }
                             }
                         }
                         stage('them') {
-                            steps {
-                                sh 'make ci NAME=them'
-                                sh 'make test NAME=them'
+                            stages {
+                                stage('up') {
+                                    steps {
+                                        sh 'make ci NAME=them'
+                                    }
+                                }
+                                stage('test') {
+                                    steps {
+                                        sh 'make test NAME=them'
+                                    }
+                                }
                             }
                         }
                     }
