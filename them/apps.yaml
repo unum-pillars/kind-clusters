@@ -1,5 +1,5 @@
 # The apps the them Unum runs, each at the tag it is pinned to. The tag is the app's git tag and its Docker Hub image tag.
 unifist-unum:
-  tag: 0.2.0
+  tag: 0.2.1
 cumulus:
-  tag: 0.2.0
+  tag: 0.2.1
