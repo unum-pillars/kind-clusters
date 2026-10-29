@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- The Jenkinsfile is one-for-one: every stage runs exactly one make command, so a red bubble is one act, in one Unum, and nothing else. The checks are `test-add`, `test-version`, `test-context` and `test-stages`; the `clusters` stage is `tools`, then `unums` with an `us` and a `them` lane side by side, each `down`, `up` and `test`, then `test-cross` and `test-route`. `make tools` runs `scripts/tools.sh`. `make test-stages` proves the stage shape and that no stage runs two commands, and Jenkins runs it (unum-pillars/kind-clusters#20).
+
 ## 0.2.1
 
 - `make up` and `make ci` name their cluster in the call (`tilt --context kind-<name>`) and nothing switches the kubectl context any more, so two Unums can come up at once (`make ci` also runs Tilt without its web UI, since two Tilts can't share its port). `make test-context` proves it, and Jenkins runs it. The guard in `unum.star` still checks that Tilt is on `kind-<name>`, and its message says to run it with `--context`.

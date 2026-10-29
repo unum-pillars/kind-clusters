@@ -7,51 +7,100 @@ pipeline {
     }
 
     stages {
-        // The checks that need no cluster first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
+        // One stage for each make command, so a red bubble is one act, in one Unum, and nothing else. The checks that need no cluster
+        // come first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and
+        // test-catalog are slow or need GitHub, so those are run by hand before a merge.
         stage('lint') {
             steps {
                 sh 'make lint'
             }
         }
-        stage('test') {
-            steps {
-                sh 'make test-add'
-                sh 'make test-version'
-                sh 'make test-context'
+        stage('checks') {
+            stages {
+                stage('test-add') {
+                    steps {
+                        sh 'make test-add'
+                    }
+                }
+                stage('test-version') {
+                    steps {
+                        sh 'make test-version'
+                    }
+                }
+                stage('test-context') {
+                    steps {
+                        sh 'make test-context'
+                    }
+                }
+                stage('test-stages') {
+                    steps {
+                        sh 'make test-stages'
+                    }
+                }
             }
         }
         stage('clusters') {
             // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them. Every call
-            // names its cluster, so the two Unums come up at once, each doing ci then test, and the cross tests wait for both
+            // names its cluster, so the two Unums come up at once, each lane doing down, up and test as stages of their own, and
+            // the cross tests wait for both lanes
             environment {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
             stages {
                 stage('tools') {
                     steps {
-                        sh 'scripts/tools.sh'
-                        sh 'make down NAME=us; make down NAME=them; true'
+                        sh 'make tools'
                     }
                 }
                 stage('unums') {
                     parallel {
                         stage('us') {
-                            steps {
-                                sh 'make ci NAME=us'
-                                sh 'make test NAME=us'
+                            stages {
+                                stage('down') {
+                                    steps {
+                                        sh 'make down NAME=us'
+                                    }
+                                }
+                                stage('up') {
+                                    steps {
+                                        sh 'make ci NAME=us'
+                                    }
+                                }
+                                stage('test') {
+                                    steps {
+                                        sh 'make test NAME=us'
+                                    }
+                                }
                             }
                         }
                         stage('them') {
-                            steps {
-                                sh 'make ci NAME=them'
-                                sh 'make test NAME=them'
+                            stages {
+                                stage('down') {
+                                    steps {
+                                        sh 'make down NAME=them'
+                                    }
+                                }
+                                stage('up') {
+                                    steps {
+                                        sh 'make ci NAME=them'
+                                    }
+                                }
+                                stage('test') {
+                                    steps {
+                                        sh 'make test NAME=them'
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                stage('across') {
+                stage('test-cross') {
                     steps {
                         sh 'make test-cross'
+                    }
+                }
+                stage('test-route') {
+                    steps {
                         sh 'make test-route'
                     }
                 }
