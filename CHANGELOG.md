@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- `make test-write` proves the one-writer half of writes across joined Unums: the owner of a record creates, updates and deletes it, and the other Unum reads each change at once, with one version bump and one journal entry for each write, and no copy kept in the other. Each Unum takes a turn as the owner. Jenkins runs it as its own stage after `test-route`. A write from a Unum that doesn't own the record is not covered, since it isn't supported yet: it lands in the owner but bumps the version twice and journals twice (unum-pillars/kind-clusters#18, relations-dil/python-relations-unifist#19).
+
 ## 0.2.2
 
 - The Jenkinsfile is one-for-one: every stage runs exactly one make command, so a red bubble is one act, in one Unum, and nothing else. The checks are `test-add`, `test-version`, `test-context` and `test-stages`; the `clusters` stage is `tools`, then `unums` with an `us` and a `them` lane side by side, each `down`, `up` and `test`, then `test-cross` and `test-route`. `make tools` runs `scripts/tools.sh`. `make test-stages` proves the stage shape and that no stage runs two commands, and Jenkins runs it (unum-pillars/kind-clusters#20).

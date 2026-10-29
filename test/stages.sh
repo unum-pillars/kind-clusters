@@ -26,6 +26,7 @@ expected="8 lint
 32 test
 16 test-cross
 16 test-route
+16 test-write
 8 tag"
 
 test "$actual" = "$expected" || { echo "the Jenkinsfile stages are not what we want. Got:"; echo "$actual"; echo "Wanted:"; echo "$expected"; exit 1; }

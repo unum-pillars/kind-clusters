@@ -104,6 +104,11 @@ pipeline {
                         sh 'make test-route'
                     }
                 }
+                stage('test-write') {
+                    steps {
+                        sh 'make test-write'
+                    }
+                }
             }
             post {
                 always {
