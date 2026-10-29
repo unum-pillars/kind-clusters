@@ -79,7 +79,7 @@ while read -r app source value; do
 
         # And it routed its data here: a Route row for this Unum's cumulus, which unifist-unum made the table for.
         routes=$(kubectl --context "$CTX" -n mysql exec deployment/mysql -- env MYSQL_PWD=root mysql -uroot -N -e \
-            "SELECT COUNT(*) FROM unum.route WHERE unum = '$NAME' AND source = 'cumulus' AND role = 'owner'")
+            "SELECT COUNT(*) FROM unum.route WHERE home = '$NAME' AND source = 'cumulus' AND role = 'owner'")
         test "$routes" = 1 || { echo "cumulus has $routes owner routes for $NAME, not 1"; exit 1; }
         echo "$app routes its data to $NAME"
         ;;

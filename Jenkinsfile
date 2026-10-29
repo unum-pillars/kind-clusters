@@ -3,11 +3,11 @@ pipeline {
 
     options {
         disableConcurrentBuilds()
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 90, unit: 'MINUTES')
     }
 
     stages {
-        // Checks that need no cluster only. The clusters themselves (make ci, test, test-cross, test-swap, test-catalog) are run by hand before a merge.
+        // The checks that need no cluster first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
         stage('lint') {
             steps {
                 sh 'make lint'
@@ -17,6 +17,28 @@ pipeline {
             steps {
                 sh 'make test-add'
                 sh 'make test-version'
+            }
+        }
+        stage('clusters') {
+            // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them
+            environment {
+                PATH = "${WORKSPACE}/bin:${PATH}"
+            }
+            steps {
+                sh 'scripts/tools.sh'
+                sh 'make down NAME=us; make down NAME=them; true'
+                sh 'make ci NAME=us'
+                sh 'make ci NAME=them'
+                sh 'make test NAME=us'
+                sh 'make test NAME=them'
+                sh 'make test-cross'
+                sh 'make test-route'
+            }
+            post {
+                always {
+                    // The clusters are deleted, and the databases they leave in data/ are root's, which the next checkout could not clean
+                    sh 'make down NAME=us; make down NAME=them; docker run --rm -v "$PWD/data:/data" busybox:1.36 sh -c "rm -rf /data/*"; true'
+                }
             }
         }
         stage('tag') {

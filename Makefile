@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-cross test-browser test-swap test-add test-catalog test-version catalog add down tag untag help
+.PHONY: setup lint cluster up ci test test-cross test-route join test-browser test-swap test-add test-catalog test-version catalog add down tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again.
@@ -39,6 +39,16 @@ TO?=them
 test-cross: ## Proves FROM and TO reach each other, and themselves, by name and no port
 	for app in $(APPS); do test/cross.sh $(FROM) $(TO) $$app && test/cross.sh $(TO) $(FROM) $$app && \
 	test/cross.sh $(FROM) $(FROM) $$app && test/cross.sh $(TO) $(TO) $$app || exit 1; done
+
+# Join two Unums: a Route row in each for the other, at its cumulus api by name. Safe to run again. Both up.
+A?=us
+B?=them
+join: ## Joins the Unums A and B with a Route row each, safe to run again
+	scripts/join.sh $(A) $(B)
+
+# Prove A and B read each other's cumulus records once they're joined, and not before; it takes the join away first and puts it back.
+test-route: ## Proves the Unums A and B read each other's cumulus records once joined, and not before
+	test/route.sh $(A) $(B)
 
 # Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
 test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
