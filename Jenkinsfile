@@ -4,45 +4,43 @@ pipeline {
     options {
         disableConcurrentBuilds()
         timeout(time: 90, unit: 'MINUTES')
+        // The checkout is a stage of its own, after the clean, so what an earlier run left behind can't stop it
+        skipDefaultCheckout(true)
     }
 
     stages {
-        // One stage for each make command, so a red bubble is one act, in one Unum, and nothing else. The checks that need no cluster
-        // come first, then the two Unums, brought up and proved. test-browser needs the permanent ingress cluster, and test-swap and
-        // test-catalog are slow or need GitHub, so those are run by hand before a merge.
+        // One step for each make command, in stages grouped by function, so a red row is one command, in one stage, in one Unum.
+        // The checks that need no cluster come first, then the two Unums, brought up and proved. test-browser needs the permanent
+        // ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
+        stage('clean') {
+            // The clusters' databases in data/ are root's, and a run that was stopped before its cleanup leaves them, which the
+            // checkout's git clean can't remove. So it is removed before the checkout, whatever happened last time
+            steps {
+                sh 'docker run --rm -v "$PWD:/workspace" busybox:1.36 sh -c "rm -rf /workspace/data"'
+            }
+        }
+        stage('checkout') {
+            steps {
+                checkout scm
+            }
+        }
         stage('lint') {
             steps {
                 sh 'make lint'
             }
         }
         stage('checks') {
-            stages {
-                stage('test-add') {
-                    steps {
-                        sh 'make test-add'
-                    }
-                }
-                stage('test-version') {
-                    steps {
-                        sh 'make test-version'
-                    }
-                }
-                stage('test-context') {
-                    steps {
-                        sh 'make test-context'
-                    }
-                }
-                stage('test-stages') {
-                    steps {
-                        sh 'make test-stages'
-                    }
-                }
+            steps {
+                sh 'make test-add'
+                sh 'make test-version'
+                sh 'make test-context'
+                sh 'make test-stages'
             }
         }
         stage('clusters') {
             // us and them as kind clusters on the agent, from the apps.yaml tags, and everything that proves them. Every call
-            // names its cluster, so the two Unums come up at once, each lane doing down, up and test as stages of their own, and
-            // the cross tests wait for both lanes
+            // names its cluster, so the two Unums come up at once, each lane doing down, up and test, and the cross tests wait
+            // for both lanes
             environment {
                 PATH = "${WORKSPACE}/bin:${PATH}"
             }
@@ -55,64 +53,32 @@ pipeline {
                 stage('unums') {
                     parallel {
                         stage('us') {
-                            stages {
-                                stage('down') {
-                                    steps {
-                                        sh 'make down NAME=us'
-                                    }
-                                }
-                                stage('up') {
-                                    steps {
-                                        sh 'make ci NAME=us'
-                                    }
-                                }
-                                stage('test') {
-                                    steps {
-                                        sh 'make test NAME=us'
-                                    }
-                                }
+                            steps {
+                                sh 'make down NAME=us'
+                                sh 'make ci NAME=us'
+                                sh 'make test NAME=us'
                             }
                         }
                         stage('them') {
-                            stages {
-                                stage('down') {
-                                    steps {
-                                        sh 'make down NAME=them'
-                                    }
-                                }
-                                stage('up') {
-                                    steps {
-                                        sh 'make ci NAME=them'
-                                    }
-                                }
-                                stage('test') {
-                                    steps {
-                                        sh 'make test NAME=them'
-                                    }
-                                }
+                            steps {
+                                sh 'make down NAME=them'
+                                sh 'make ci NAME=them'
+                                sh 'make test NAME=them'
                             }
                         }
                     }
                 }
-                stage('test-cross') {
+                stage('across') {
                     steps {
                         sh 'make test-cross'
-                    }
-                }
-                stage('test-route') {
-                    steps {
                         sh 'make test-route'
-                    }
-                }
-                stage('test-write') {
-                    steps {
                         sh 'make test-write'
                     }
                 }
             }
             post {
                 always {
-                    // The clusters are deleted, and the databases they leave in data/ are root's, which the next checkout could not clean
+                    // The clusters are deleted, and the databases they leave in data/ are root's, which the next clean removes if this can't
                     sh 'make down NAME=us; make down NAME=them; docker run --rm -v "$PWD/data:/data" busybox:1.36 sh -c "rm -rf /data/*"; true'
                 }
             }

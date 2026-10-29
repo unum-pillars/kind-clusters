@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4
+
+- The Jenkinsfile groups its stages by function and has one step for each make command, so the graph is about six bubbles and each command is its own collapsible row with its own status, time and log: `lint`, `checks` (`test-add`, `test-version`, `test-context`, `test-stages`), `clusters` (`tools`, then an `us` and a `them` lane side by side, each `down`, `ci` and `test`, then `across` with `test-cross`, `test-route` and `test-write`) and `tag`. `make test-stages` proves the stages and the order of the make commands, and that nothing else is run but the clean, the cleanup and the tag (unum-pillars/kind-clusters#23).
+- A `clean` stage runs before the checkout and removes `data/` with a docker run, and the checkout is a stage of its own (`skipDefaultCheckout`). The clusters' databases are root's, and a run that was stopped before its cleanup left them behind, so the next checkout's `git clean` failed with `Permission denied` and `main` could not build. Whatever happened last time, the workspace is now cleaned first.
+
 ## 0.2.3
 
 - `make test-write` proves the one-writer half of writes across joined Unums: the owner of a record creates, updates and deletes it, and the other Unum reads each change at once, with one version bump and one journal entry for each write, and no copy kept in the other. Each Unum takes a turn as the owner. Jenkins runs it as its own stage after `test-route`. A write from a Unum that doesn't own the record is not covered, since it isn't supported yet: it lands in the owner but bumps the version twice and journals twice (unum-pillars/kind-clusters#18, relations-dil/python-relations-unifist#19).
