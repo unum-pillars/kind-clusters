@@ -45,8 +45,11 @@ answers() {
     call "$@" | grep -q OK
 }
 
+# curl exits 35 or 56 when the handshake fails or the server sends an alert, as it does for a client certificate it doesn't trust
 refused() {
-    ! answers "$@"
+    status=0
+    call "$@" > /dev/null || status=$?
+    test "$status" -eq 35 -o "$status" -eq 56
 }
 
 cleanup() {
@@ -59,9 +62,16 @@ kubectl --context "kind-$B" delete pod accept-test --ignore-not-found > /dev/nul
 kubectl --context "kind-$B" run accept-test --restart=Never --image=curlimages/curl:8.11.1 --command -- sleep 600 > /dev/null
 kubectl --context "kind-$B" wait --for=condition=Ready pod/accept-test --timeout=120s > /dev/null
 
-secret "$A" cert-manager root-ca 'tls\.crt' | kubectl --context "kind-$B" exec -i accept-test -- sh -c 'cat > /tmp/root.crt'
-{ secret "$B" cert-manager client 'tls\.crt'; secret "$B" cert-manager client 'tls\.key'; } |
-    kubectl --context "kind-$B" exec -i accept-test -- sh -c 'cat > /tmp/client.pem'
+# put <file> <content>: the pod's file, made from an argument, since piping to kubectl exec -i can lose what it's given
+# the script is single quoted on purpose: the pod expands it
+# shellcheck disable=SC2016
+put() {
+    kubectl --context "kind-$B" exec accept-test -- sh -c 'printf "%s\n" "$1" > "$2"' sh "$2" "$1"
+}
+
+put /tmp/root.crt "$(secret "$A" cert-manager root-ca 'tls\.crt')"
+put /tmp/client.pem "$(secret "$B" cert-manager client 'tls\.crt')
+$(secret "$B" cert-manager client 'tls\.key')"
 
 reset
 
