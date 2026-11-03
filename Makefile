@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
+.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller accept test-accept test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -58,6 +58,9 @@ test-cross: ## Proves FROM and TO reach each other, and themselves, by name and 
 # Join two Unums: a Route row in each for the other, at its cumulus api by name. Safe to run again. Both up.
 A?=us
 B?=them
+accept: ## Has the Unum A accept client certificates from the Unum B, by adding the root of B to what A trusts, safe to run again
+	scripts/accept.sh $(A) $(B)
+
 join: ## Joins the Unums A and B with a Route row each, safe to run again
 	scripts/join.sh $(A) $(B)
 
@@ -68,6 +71,10 @@ test-route: ## Proves the Unums A and B read each other's cumulus records once j
 # Prove the owner of a record writes it, and the other Unum reads each change at once, with one version bump and one journal entry each.
 test-write: ## Proves the owner writes a record and the other Unum A or B reads each change, joined
 	test/write.sh $(A) $(B)
+
+# Prove A accepts the client certificate of B once it has accepted B's root, and not before; it takes the acceptance away when it's done.
+test-accept: ## Proves the Unum A refuses the client certificate of B until A accepts the root of B
+	test/accept.sh $(A) $(B)
 
 # Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
 test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
