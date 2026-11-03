@@ -1,0 +1,13 @@
+# The Unum's ingress checks a client certificate if one is given, and never requires one: a browser on the same hostnames sends none
+# and goes through, a Unum sends its own and is checked against the CAs in the secret trusted (its ca.crt), which scripts/trust.sh
+# fills. Named default so it applies to every host the Unum serves.
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: default
+  namespace: traefik
+spec:
+  clientAuth:
+    clientAuthType: VerifyClientCertIfGiven
+    secretNames:
+    - trusted

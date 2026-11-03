@@ -171,6 +171,11 @@ def unum():
         'cert-manager', cmd=['scripts/cert-manager.sh', name], deps=[config.main_dir + '/../../pillars/cert-manager', config.main_dir + '/../../scripts/cert-manager.sh'],
         dir=config.main_dir + '/../..')
 
+    # The ingress checks a client certificate if one is given, against the CAs this Unum trusts: its own root to begin with.
+    local_resource(
+        'trust', cmd=['scripts/trust.sh', name], deps=[config.main_dir + '/../../trust', config.main_dir + '/../../scripts/trust.sh'],
+        resource_deps=['ingress', 'cert-manager'], dir=config.main_dir + '/../..')
+
     # The ingress cluster, if there is one, sends this Unum's names here, so a browser uses the names pods do.
     local_resource(
         'route', cmd=['scripts/route.sh', name], deps=[config.main_dir + '/../../route', config.main_dir + '/../../scripts/route.sh'],
