@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller accept test-accept test-rest test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
+.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller accept test-accept test-rest test-rotate test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -79,6 +79,10 @@ test-accept: ## Proves the Unum A refuses the client certificate of B until A ac
 # Prove a relations-rest Source in B calls A over mutual TLS with cert and verify as paths, and the app in A is told B called.
 test-rest: ## Proves a relations-rest Source in the Unum B calls the Unum A over mutual TLS, once A accepts B
 	test/rest.sh $(A) $(B)
+
+# Prove a renewed client certificate, CA and server certificate are used with no restart, and print how long each takes.
+test-rotate: ## Proves renewed certificates and CAs between the Unums A and B are used with no restart, and how long each takes
+	test/rotate.sh $(A) $(B)
 
 # Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
 test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
