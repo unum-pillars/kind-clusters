@@ -91,7 +91,8 @@ def around(app):
     ]))
 
 def ingresses(name, yaml):
-    """An Ingress for every Service the app's YAML has, at <service>.<namespace>.<cluster>.localhost: the apps ship none."""
+    """An Ingress for every Service the app's YAML has, at <service>.<namespace>.<cluster>.localhost: the apps ship none. Each asks
+    cert-manager for a certificate from the Unum's own issuer (unum), so the host answers on HTTPS beside HTTP."""
 
     docs = []
 
@@ -103,8 +104,12 @@ def ingresses(name, yaml):
             docs.append({
                 'apiVersion': 'networking.k8s.io/v1',
                 'kind': 'Ingress',
-                'metadata': {'name': service, 'namespace': namespace},
-                'spec': {'rules': [{
+                'metadata': {
+                    'name': service, 'namespace': namespace, 'annotations': {'cert-manager.io/cluster-issuer': 'unum'},
+                },
+                'spec': {'tls': [{
+                    'hosts': ['%s.%s.%s.localhost' % (service, namespace, name)], 'secretName': '%s-tls' % service,
+                }], 'rules': [{
                     'host': '%s.%s.%s.localhost' % (service, namespace, name),
                     'http': {'paths': [{
                         'path': '/',
