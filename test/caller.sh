@@ -1,9 +1,9 @@
 #!/bin/sh
 # Prove an app sees which Unum is calling, from the common name of the client certificate, and never from a header the caller
-# sends: an echo app (whoami) takes the same middlewares as the app's api Ingress, and a pod in the Unum calls it on https with the
-# Unum's own client certificate (the header names the Unum first: it lists the certificates it was sent, the Unum's then its root's),
-# with none (no header), and with a forged header on https and on http, with and without the certificate (the forgery never gets
-# through). Usage: test/caller.sh <cluster> [app], app being unifist-unum unless named, with the cluster up. The pod calls the
+# sends: an echo app (test/whoami.sh) takes the same middlewares as the app's api Ingress, and a pod in the Unum calls it on https with
+# the Unum's own client certificate (the header names the Unum first: it lists the certificates it was sent, the Unum's then its
+# root's), with none (no header), and with a forged header on https and on http, with and without the certificate (the forgery never
+# gets through). Usage: test/caller.sh <cluster> [app], app being unifist-unum unless named, with the cluster up. The pod calls the
 # Unum's own node (--connect-to), since curl sends every *.localhost to 127.0.0.1 itself without asking DNS.
 set -e
 
@@ -14,83 +14,22 @@ HOST=whoami.$APP.$NAME.localhost
 
 test -n "$NAME" || { echo "usage: test/caller.sh <cluster> [app]"; exit 1; }
 
-app() {
-    kubectl --context "$CTX" -n "$APP" "$@"
-}
-
 secret() {
     kubectl --context "$CTX" -n "$1" get secret "$2" -o "jsonpath={.data.$3}" | base64 -d
 }
-
-MIDDLEWARES=$(app get ingress api -o 'jsonpath={.metadata.annotations.traefik\.ingress\.kubernetes\.io/router\.middlewares}')
-
-test -n "$MIDDLEWARES" || { echo "the api Ingress of $APP has no middlewares, so it does not pass on who called"; exit 1; }
 
 ROOT=$(secret cert-manager root-ca 'tls\.crt')
 CLIENT="$(secret cert-manager client 'tls\.crt')
 $(secret cert-manager client 'tls\.key')"
 
 gone() {
-    app delete ingress/whoami service/whoami deployment/whoami --ignore-not-found > /dev/null
+    test/whoami.sh "$NAME" "$APP" down
 }
 
 gone
 trap gone EXIT
 
-app apply -f - > /dev/null <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: whoami
-spec:
-  selector:
-    matchLabels:
-      app: whoami
-  template:
-    metadata:
-      labels:
-        app: whoami
-    spec:
-      containers:
-      - name: whoami
-        image: traefik/whoami:v1.10.3
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: whoami
-spec:
-  selector:
-    app: whoami
-  ports:
-  - port: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: whoami
-  annotations:
-    cert-manager.io/cluster-issuer: unum
-    traefik.ingress.kubernetes.io/router.middlewares: $MIDDLEWARES
-spec:
-  tls:
-  - hosts:
-    - $HOST
-    secretName: whoami-tls
-  rules:
-  - host: $HOST
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: whoami
-            port:
-              number: 80
-EOF
-
-app rollout status deployment/whoami --timeout=120s > /dev/null
+test/whoami.sh "$NAME" "$APP" up
 
 kubectl --context "$CTX" delete pod "caller-$NAME" --ignore-not-found > /dev/null
 
