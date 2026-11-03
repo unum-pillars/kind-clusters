@@ -1,10 +1,10 @@
 #!/bin/sh
 # Prove an app sees which Unum is calling, from the common name of the client certificate, and never from a header the caller
-# sends: an echo app (whoami) takes the same middlewares as the app's api Ingress, and a pod in the Unum calls it on https with
-# the Unum's own client certificate (the header names the Unum), with none (no header), and with a forged header on https and on
-# http, with and without the certificate (the forgery never gets through). Usage: test/caller.sh <cluster> [app], app being
-# unifist-unum unless named, with the cluster up. The pod calls the Unum's own node (--connect-to), since curl sends every
-# *.localhost to 127.0.0.1 itself without asking DNS.
+# sends: an echo app (whoami) takes the same middlewares as the app's api Ingress, and a pod in the Unum calls it on https with the
+# Unum's own client certificate (the header names the Unum first: it lists the certificates it was sent, the Unum's then its root's),
+# with none (no header), and with a forged header on https and on http, with and without the certificate (the forgery never gets
+# through). Usage: test/caller.sh <cluster> [app], app being unifist-unum unless named, with the cluster up. The pod calls the
+# Unum's own node (--connect-to), since curl sends every *.localhost to 127.0.0.1 itself without asking DNS.
 set -e
 
 NAME=$1
@@ -120,7 +120,7 @@ kubectl --context "$CTX" run "caller-$NAME" --rm -i --restart=Never --image=curl
         sleep 2
     done
 
-    secure --cert /tmp/client.pem | told | grep -q "CN=$NAME\$" ||
+    secure --cert /tmp/client.pem | told | grep -q "^Subject=\"CN=$NAME\"" ||
         { echo "$HOST was not told that $NAME called, with its client certificate"; exit 1; }
 
     test -z "$(secure | told)" ||
