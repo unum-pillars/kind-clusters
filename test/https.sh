@@ -20,6 +20,8 @@ kubectl --context "$CTX" delete pod "https-$NAME" --ignore-not-found > /dev/null
 # shellcheck disable=SC2016
 kubectl --context "$CTX" run "https-$NAME" --rm -i --restart=Never --image=curlimages/curl:8.11.1 \
     --env "ROOT=$ROOT" --env "NAME=$NAME" --env "HOST=$HOST" --command -- sh -c '
+    # kubectl attaches after the pod starts and loses the output of a pod that has already finished, and then exits 0
+    sleep 2
     echo "$ROOT" > /tmp/root.crt
     node=$NAME-control-plane
 

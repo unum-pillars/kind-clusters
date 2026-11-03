@@ -30,6 +30,8 @@ kubectl --context "$CTX" delete pod "trust-$NAME" --ignore-not-found > /dev/null
 # shellcheck disable=SC2016
 kubectl --context "$CTX" run "trust-$NAME" --rm -i --restart=Never --image=curlimages/curl:8.11.1 \
     --env "ROOT=$ROOT" --env "CLIENT=$CLIENT" --env "STRANGER=$STRANGER" --env "NAME=$NAME" --env "HOST=$HOST" --command -- sh -c '
+    # kubectl attaches after the pod starts and loses the output of a pod that has already finished, and then exits 0
+    sleep 2
     echo "$ROOT" > /tmp/root.crt
     echo "$CLIENT" > /tmp/client.pem
     echo "$STRANGER" > /tmp/stranger.pem
