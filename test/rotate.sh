@@ -47,7 +47,7 @@ reset() {
 
 # B's throwaway root, Issuer, client certificate and the pod that uses them
 tidy() {
-    in_b delete pod rotate-test --ignore-not-found --wait=false > /dev/null 2>&1 || true
+    in_b delete pod rotate-test --ignore-not-found --grace-period=1 > /dev/null 2>&1 || true
     in_b delete certificate rotate-root rotate-client --ignore-not-found > /dev/null 2>&1 || true
     in_b delete issuer rotate-ca rotate-selfsigned --ignore-not-found > /dev/null 2>&1 || true
     in_b delete secret rotate-root rotate-client rotate-right --ignore-not-found > /dev/null 2>&1 || true
@@ -160,7 +160,7 @@ fingerprint() {
 
 # the digest of a key of a secret in B, the empty one if it isn't there
 held() {
-    in_b get secret "$1" -o "jsonpath={.data.$2}" 2> /dev/null | digest
+    in_b get secret "$1" -o "jsonpath={.data.$2}" 2> /dev/null | base64 -d | digest
 }
 
 # reissued <secret> <digest>: whether cert-manager has made the secret again, and not as it was
@@ -174,17 +174,12 @@ mounted() {
     test "$(in_b exec rotate-test -- cat /certs/client/tls.crt | digest)" = "$(held rotate-client 'tls\.crt')"
 }
 
-# the client certificate issued again by the root as it is now: the root is in the chain the secret holds
+# the client certificate issued again by the root as it is now: the root it names is the root the secret holds
 renewed_client() {
     old=$(held rotate-client 'tls\.crt')
     in_b delete secret rotate-client > /dev/null
     wait_for 60 reissued rotate-client "$old" || return 1
-    chain=$(in_b get secret rotate-client -o 'jsonpath={.data.tls\.crt}' | base64 -d)
-    root=$(in_b get secret rotate-root -o 'jsonpath={.data.tls\.crt}' | base64 -d)
-    case "$chain" in
-    *"$root"*) return 0 ;;
-    esac
-    return 1
+    test "$(held rotate-client 'ca\.crt')" = "$(held rotate-root 'tls\.crt')"
 }
 
 # the traefik pods of A and how often they've restarted

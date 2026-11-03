@@ -125,8 +125,8 @@ def ingresses(name, yaml):
     return str(encode_yaml_stream(docs))
 
 def callers(yaml):
-    """The Middleware, in each namespace the app's Services are in, that tells the app who called: the common name of every certificate
-    the client sent (its own, then its root's) goes in X-Forwarded-Tls-Client-Cert-Info, none if it sent none. Traefik drops that
+    """The Middleware, in each namespace the app's Services are in, that tells the app who called: the common name and serial
+    number of every certificate in the chain Traefik verified for the client (its own, then its root's) go in X-Forwarded-Tls-Client-Cert-Info, none if it sent none. Traefik drops that
     header from the request first, so a caller can't forge it. The Ingresses name the Middleware, and only one in their namespace."""
 
     namespaces = []
@@ -142,7 +142,7 @@ def caller(namespace):
         'apiVersion': 'traefik.io/v1alpha1',
         'kind': 'Middleware',
         'metadata': {'name': 'caller', 'namespace': namespace},
-        'spec': {'passTLSClientCert': {'info': {'subject': {'commonName': True}}}},
+        'spec': {'passTLSClientCert': {'info': {'serialNumber': True, 'subject': {'commonName': True}}}},
     }]))
 
 def configured(name, app, yaml):

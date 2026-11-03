@@ -1,16 +1,18 @@
 #!/bin/sh
 # Have a Unum accept client certificates from another: the root of the other is added to the secret trusted that the ingress of the
-# Unum checks them against, if it isn't there already. The root is read from the other cluster's cert-manager/root-ca, as both are
-# up on this machine. Safe to run again. Usage: scripts/accept.sh <cluster> <other>
+# Unum checks them against, if it isn't there already. The root is read from the other cluster's cert-manager/root-ca, or the secret
+# named as namespace/secret, as both are up on this machine. Safe to run again, and for each root a CA renews to.
+# Usage: scripts/accept.sh <cluster> <other> [namespace/secret]
 set -e
 
 NAME=$1
 OTHER=$2
+FROM=${3:-cert-manager/root-ca}
 CTX=kind-$NAME
 
-test -n "$NAME" -a -n "$OTHER" || { echo "usage: scripts/accept.sh <cluster> <other>"; exit 1; }
+test -n "$NAME" -a -n "$OTHER" || { echo "usage: scripts/accept.sh <cluster> <other> [namespace/secret]"; exit 1; }
 
-root=$(kubectl --context "kind-$OTHER" -n cert-manager get secret root-ca -o 'jsonpath={.data.tls\.crt}' | base64 -d)
+root=$(kubectl --context "kind-$OTHER" -n "${FROM%/*}" get secret "${FROM#*/}" -o 'jsonpath={.data.tls\.crt}' | base64 -d)
 trusted=$(kubectl --context "$CTX" -n traefik get secret trusted -o 'jsonpath={.data.ca\.crt}' | base64 -d)
 
 case "$trusted" in

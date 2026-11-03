@@ -1,7 +1,7 @@
 #!/bin/sh
 # Prove an app sees which Unum is calling, from the common name of the client certificate, and never from a header the caller
 # sends: an echo app (test/whoami.sh) takes the same middlewares as the app's api Ingress, and a pod in the Unum calls it on https with
-# the Unum's own client certificate (the header names the Unum first: it lists the certificates it was sent, the Unum's then its
+# the Unum's own client certificate (the header names the Unum first: it lists the chain Traefik verified, the Unum's then its
 # root's), with none (no header), and with a forged header on https and on http, with and without the certificate (the forgery never
 # gets through). Usage: test/caller.sh <cluster> [app], app being unifist-unum unless named, with the cluster up. The pod calls the
 # Unum's own node (--connect-to), since curl sends every *.localhost to 127.0.0.1 itself without asking DNS.
