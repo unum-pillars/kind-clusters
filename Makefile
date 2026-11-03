@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
+.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -43,6 +43,9 @@ test-https: ## Proves the running Unum NAME serves its apps on HTTPS, signed by 
 # Prove the running Unum checks a client certificate if it is given: none passes, its own passes, a stranger's is refused.
 test-trust: ## Proves the running Unum NAME checks a client certificate if given: none passes, its own passes, a stranger's does not
 	test/trust.sh $(NAME)
+
+test-caller: ## Proves an app in the running Unum NAME is told who called from the client certificate, never from a header
+	test/caller.sh $(NAME)
 
 # Prove each of FROM and TO reaches the other's unifist-unum, and its own, by name and no port, both clusters up.
 APPS?=unifist-unum cumulus
