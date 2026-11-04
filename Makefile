@@ -11,7 +11,7 @@ setup: ## Installs kind, kubectl, tilt and Docker Desktop with Homebrew
 
 VERSION?=$(shell cat VERSION)
 
-.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller accept test-accept test-rest test-rotate test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
+.PHONY: setup lint cluster up ci test test-certificates test-https test-trust test-caller accept test-accept test-rest test-rotate revoke test-revoke test-cross test-route test-write join test-browser test-swap test-add test-catalog test-version test-context test-stages catalog add down tools tag untag help
 .DEFAULT_GOAL := help
 
 # The Unum's kind cluster, made if it's missing, its data in data/$(NAME) here. Safe to run again. Every call names its cluster
@@ -61,6 +61,9 @@ B?=them
 accept: ## Has the Unum A accept client certificates from the Unum B, by adding the root of B to what A trusts, safe to run again
 	scripts/accept.sh $(A) $(B)
 
+revoke: ## Has the Unum A stop accepting client certificates from the Unum B, by taking every root named B out of what A trusts, safe to run again
+	scripts/revoke.sh $(A) $(B)
+
 join: ## Joins the Unums A and B with a Route row each, safe to run again
 	scripts/join.sh $(A) $(B)
 
@@ -83,6 +86,10 @@ test-rest: ## Proves a relations-rest Source in the Unum B calls the Unum A over
 # Prove a renewed client certificate, CA and server certificate are used with no restart, and print how long each takes.
 test-rotate: ## Proves renewed certificates and CAs between the Unums A and B are used with no restart, and how long each takes
 	test/rotate.sh $(A) $(B)
+
+# Prove A stops accepting the client certificates of B once it revokes B, new connections refused and ones open lasting until they close.
+test-revoke: ## Proves the Unum A refuses new connections with a client certificate from B once A revokes B, and what it leaves open
+	test/revoke.sh $(A) $(B)
 
 # Prove a browser on this machine reaches the Unum NAME by name on port 80, through the ingress cluster being up.
 test-browser: ## Proves the Unum NAME answers by name on port 80 from this machine, the ingress cluster up
