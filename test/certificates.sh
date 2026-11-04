@@ -1,6 +1,8 @@
 #!/bin/sh
 # Prove a Unum can issue a certificate: ask cert-manager for one from the Unum's own authority (the ClusterIssuer named unum, which
 # signs with the Unum's self-signed root), and check it is signed by that root, in a namespace made for this and removed after.
+# Then check the Unum's own client certificate (the secret client in cert-manager) is named for the Unum, is for client use, and is
+# signed by that root too.
 # Usage: test/certificates.sh <cluster>, with the cluster up.
 set -e
 
@@ -47,4 +49,14 @@ docker run --rm --entrypoint sh -e CERT="$CERT" -e ROOT="$ROOT" alpine/openssl:3
     'echo "$ROOT" > /root.crt && echo "$CERT" > /cert.crt && openssl verify -CAfile /root.crt /cert.crt' > /dev/null || {
     echo "the certificate is not signed by the Unum's root"; exit 1; }
 
-echo "$NAME issues certificates, signed by its own root"
+# the Unum's own client certificate: its subject is the Unum's name, it is for client use, and the root signed it
+CLIENT=$(secret cert-manager client 'tls\.crt')
+
+docker run --rm --entrypoint sh -e CLIENT="$CLIENT" -e ROOT="$ROOT" -e NAME="$NAME" alpine/openssl:3.5.5 -c \
+    'echo "$ROOT" > /root.crt && echo "$CLIENT" > /client.crt &&
+    openssl x509 -in /client.crt -noout -subject | grep -q "CN *= *$NAME\$" &&
+    openssl x509 -in /client.crt -noout -ext extendedKeyUsage | grep -q "TLS Web Client Authentication" &&
+    openssl verify -CAfile /root.crt -purpose sslclient /client.crt' > /dev/null || {
+    echo "the Unum's client certificate is not named $NAME, for client use and signed by its root"; exit 1; }
+
+echo "$NAME issues certificates, signed by its own root, and has its own client certificate"

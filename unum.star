@@ -91,7 +91,8 @@ def around(app):
     ]))
 
 def ingresses(name, yaml):
-    """An Ingress for every Service the app's YAML has, at <service>.<namespace>.<cluster>.localhost: the apps ship none."""
+    """An Ingress for every Service the app's YAML has, at <service>.<namespace>.<cluster>.localhost: the apps ship none. Each asks
+    cert-manager for a certificate from the Unum's own issuer (unum), so the host answers on HTTPS beside HTTP."""
 
     docs = []
 
@@ -103,8 +104,15 @@ def ingresses(name, yaml):
             docs.append({
                 'apiVersion': 'networking.k8s.io/v1',
                 'kind': 'Ingress',
-                'metadata': {'name': service, 'namespace': namespace},
-                'spec': {'rules': [{
+                'metadata': {
+                    'name': service, 'namespace': namespace, 'annotations': {
+                        'cert-manager.io/cluster-issuer': 'unum',
+                        'traefik.ingress.kubernetes.io/router.middlewares': '%s-caller@kubernetescrd' % namespace,
+                    },
+                },
+                'spec': {'tls': [{
+                    'hosts': ['%s.%s.%s.localhost' % (service, namespace, name)], 'secretName': '%s-tls' % service,
+                }], 'rules': [{
                     'host': '%s.%s.%s.localhost' % (service, namespace, name),
                     'http': {'paths': [{
                         'path': '/',
@@ -115,6 +123,27 @@ def ingresses(name, yaml):
             })
 
     return str(encode_yaml_stream(docs))
+
+def callers(yaml):
+    """The Middleware, in each namespace the app's Services are in, that tells the app who called: the common name and serial
+    number of every certificate in the chain Traefik verified for the client (its own, then its root's) go in X-Forwarded-Tls-Client-Cert-Info, none if it sent none. Traefik drops that
+    header from the request first, so a caller can't forge it. The Ingresses name the Middleware, and only one in their namespace."""
+
+    namespaces = []
+
+    for doc in decode_yaml_stream(yaml):
+        if doc['kind'] == 'Service' and doc['metadata']['namespace'] not in namespaces:
+            namespaces.append(doc['metadata']['namespace'])
+
+    return namespaces
+
+def caller(namespace):
+    return str(encode_yaml_stream([{
+        'apiVersion': 'traefik.io/v1alpha1',
+        'kind': 'Middleware',
+        'metadata': {'name': 'caller', 'namespace': namespace},
+        'spec': {'passTLSClientCert': {'info': {'serialNumber': True, 'subject': {'commonName': True}}}},
+    }]))
 
 def configured(name, app, yaml):
     """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name."""
@@ -166,6 +195,11 @@ def unum():
         'cert-manager', cmd=['scripts/cert-manager.sh', name], deps=[config.main_dir + '/../../pillars/cert-manager', config.main_dir + '/../../scripts/cert-manager.sh'],
         dir=config.main_dir + '/../..')
 
+    # The ingress checks a client certificate if one is given, against the CAs this Unum trusts: its own root to begin with.
+    local_resource(
+        'trust', cmd=['scripts/trust.sh', name], deps=[config.main_dir + '/../../trust', config.main_dir + '/../../scripts/trust.sh'],
+        resource_deps=['ingress', 'cert-manager'], dir=config.main_dir + '/../..')
+
     # The ingress cluster, if there is one, sends this Unum's names here, so a browser uses the names pods do.
     local_resource(
         'route', cmd=['scripts/route.sh', name], deps=[config.main_dir + '/../../route', config.main_dir + '/../../scripts/route.sh'],
@@ -174,6 +208,7 @@ def unum():
     apps = read_yaml(config.main_dir + '/apps.yaml')
 
     workloads = []
+    middlewares = []
 
     for app in apps:
         source = apps[app]
@@ -198,6 +233,11 @@ def unum():
         k8s_yaml(blob(yaml))
         k8s_yaml(blob(ingresses(name, yaml)))
 
+        for namespace in callers(yaml):
+            if namespace not in middlewares:
+                k8s_yaml(blob(caller(namespace)))
+                middlewares.append(namespace)
+
         config_yaml = configured(name, app, yaml)
 
         if config_yaml:
@@ -206,6 +246,10 @@ def unum():
         for doc in decode_yaml_stream(yaml):
             if doc['kind'] == 'Deployment':
                 workloads.append((app, doc['metadata']['name']))
+
+    # The middlewares are Traefik's, so they wait for its CRDs.
+    if middlewares:
+        k8s_resource(new_name='callers', objects=['caller:middleware:%s' % namespace for namespace in middlewares], resource_deps=['ingress'])
 
     # Two apps can each have an api, which Tilt then names api:deployment:<namespace>.
     counts = {}

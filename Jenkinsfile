@@ -10,7 +10,8 @@ pipeline {
 
     stages {
         // One step for each make command, in stages grouped by function, so a red row is one command, in one stage, in one Unum.
-        // Clone, then everything within the repo that needs no cluster, then the two Unums, brought up and proved, and across them. test-browser needs the
+        // Clone, then everything within the repo that needs no cluster, then the two Unums, brought up and proved, and across them (the
+        // mutual TLS tests change what one Unum trusts and put it back, so they run one after another). test-browser needs the
         // permanent ingress cluster, and test-swap and test-catalog are slow or need GitHub, so those are run by hand before a merge.
         stage('clone') {
             // The clusters' databases in data/ are root's, and a run that was stopped before its cleanup leaves them, which the
@@ -46,6 +47,9 @@ pipeline {
                                 sh 'make ci NAME=us'
                                 sh 'make test NAME=us'
                                 sh 'make test-certificates NAME=us'
+                                sh 'make test-https NAME=us'
+                                sh 'make test-trust NAME=us'
+                                sh 'make test-caller NAME=us'
                             }
                         }
                         stage('them') {
@@ -54,6 +58,9 @@ pipeline {
                                 sh 'make ci NAME=them'
                                 sh 'make test NAME=them'
                                 sh 'make test-certificates NAME=them'
+                                sh 'make test-https NAME=them'
+                                sh 'make test-trust NAME=them'
+                                sh 'make test-caller NAME=them'
                             }
                         }
                     }
@@ -63,6 +70,10 @@ pipeline {
                         sh 'make test-cross'
                         sh 'make test-route'
                         sh 'make test-write'
+                        sh 'make test-accept'
+                        sh 'make test-rest'
+                        sh 'make test-rotate'
+                        sh 'make test-revoke'
                     }
                 }
             }

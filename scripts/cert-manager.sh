@@ -1,5 +1,6 @@
 #!/bin/sh
-# Give a Unum cert-manager, its own root authority and the ClusterIssuer named unum that signs with it. Safe to run again.
+# Give a Unum cert-manager, its own root authority, the ClusterIssuer named unum that signs with it and its own client certificate.
+# Safe to run again.
 # Usage: scripts/cert-manager.sh <cluster>
 set -e
 
@@ -16,3 +17,4 @@ done
 sed "s/__NAME__/$NAME/g" pillars/cert-manager/issuers.yaml | kubectl --context "$CTX" apply -f -
 kubectl --context "$CTX" -n cert-manager wait --for=condition=Ready certificate/root-ca --timeout=120s
 kubectl --context "$CTX" wait --for=condition=Ready clusterissuer/unum --timeout=120s
+kubectl --context "$CTX" -n cert-manager wait --for=condition=Ready certificate/client --timeout=120s

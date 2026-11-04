@@ -33,15 +33,32 @@ make down NAME=us
 make ci NAME=us
 make test NAME=us
 make test-certificates NAME=us
+make test-https NAME=us
+make test-trust NAME=us
+make test-caller NAME=us
 make down NAME=them
 make ci NAME=them
 make test NAME=them
 make test-certificates NAME=them
+make test-https NAME=them
+make test-trust NAME=them
+make test-caller NAME=them
 make test-cross
 make test-route
-make test-write"
+make test-write
+make test-accept
+make test-rest
+make test-rotate
+make test-revoke"
 
 test "$steps" = "$wanted" || { echo "the make commands in the Jenkinsfile are not what we want. Got:"; echo "$steps"; echo "Wanted:"; echo "$wanted"; exit 1; }
+
+# And every test target is a step, but the three run by hand before a merge (the Jenkinsfile says why).
+missing=$(sed -n 's/^\(test-[a-z]*\):.*/\1/p' Makefile | grep -vE '^test-(browser|swap|catalog)$' | while read -r target; do
+    echo "$steps" | grep -qE "^make $target( |\$)" || echo "$target"
+done)
+
+test -z "$missing" || { echo "these test targets are not steps in the Jenkinsfile: $missing"; exit 1; }
 
 # And nothing else is run: the sh steps that aren't a make command are the clean, the cleanup after the clusters, and the tag.
 others=$(grep -E "^ *sh " Jenkinsfile | grep -vE "^ *sh 'make [^;]*'$" | grep -vE "docker run --rm -v|^ *sh '''$" || true)
