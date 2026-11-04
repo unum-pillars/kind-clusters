@@ -54,12 +54,11 @@ make test-revoke"
 test "$steps" = "$wanted" || { echo "the make commands in the Jenkinsfile are not what we want. Got:"; echo "$steps"; echo "Wanted:"; echo "$wanted"; exit 1; }
 
 # And every test target is a step, but the three run by hand before a merge (the Jenkinsfile says why).
-for target in $(sed -n 's/^\(test-[a-z]*\):.*/\1/p' Makefile); do
-    case "$target" in
-    test-browser|test-swap|test-catalog) continue ;;
-    esac
-    echo "$steps" | grep -qE "^make $target( |\$)" || { echo "make $target is not a step in the Jenkinsfile"; exit 1; }
-done
+missing=$(sed -n 's/^\(test-[a-z]*\):.*/\1/p' Makefile | grep -vE '^test-(browser|swap|catalog)$' | while read -r target; do
+    echo "$steps" | grep -qE "^make $target( |\$)" || echo "$target"
+done)
+
+test -z "$missing" || { echo "these test targets are not steps in the Jenkinsfile: $missing"; exit 1; }
 
 # And nothing else is run: the sh steps that aren't a make command are the clean, the cleanup after the clusters, and the tag.
 others=$(grep -E "^ *sh " Jenkinsfile | grep -vE "^ *sh 'make [^;]*'$" | grep -vE "docker run --rm -v|^ *sh '''$" || true)
