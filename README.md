@@ -92,10 +92,13 @@ when it is made; an existing cluster has to be deleted and made again (its data 
 
 Two Unums that are joined read each other's records. Joining is a Route row in each Unum's `unum.route` for the other: the
 records whose `home` is the other, owned by the other as `holder`, at its cumulus api by name,
-`https://api.cumulus.<unum>.localhost`, which is mutual TLS (see Authenticating between Unums). `make join` has the two Unums accept
-each other's client certificates, puts the other's root in cumulus's secret `unum-roots`, and puts the rows in through unifist-unum's REST, so
-it's the app that writes them. It waits for cumulus's api pods to have the roots and their client certificate (the secret `unum-client`, from
-the Unum's own issuer), which the kubelet brings in about a minute after they change, and it is safe to run again:
+`https://api.cumulus.<unum>.localhost`, which is mutual TLS (see Authenticating between Unums). `make join` goes through unifist-unum's API
+from a pod in each Unum: each follows the other (`POST /follow`: the Route row, and the other's root in cumulus's secret `unum-roots` to verify
+it with) and accepts it (`POST /accept`: its root in what the ingress trusts), with the fingerprint of the other's root, which `join` takes from
+the other's `GET /unum` where a person would confirm it. The API writes the Secrets from inside the cluster as the ServiceAccount `api`, whose Role
+(made by `unum.star`) is limited to `trusted` in `traefik` and `unum-roots` in each other app's namespace, and is told what to write by
+`unum.json` (`apps`, `trusted` and `roots`). `join` waits for cumulus's api pods to have the roots and their client certificate (the secret
+`unum-client`, from the Unum's own issuer), which the kubelet brings in about a minute after they change, and it is safe to run again:
 
     make join A=us B=them        # defaults to us and them
     make test-route A=us B=them  # a record made in one is read from the other, once, with the id of the Unum that made it

@@ -197,9 +197,11 @@ def client(name, app):
         },
     }]))
 
-def configured(name, app, yaml):
-    """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name, and the
-    files of its client certificate and key and of the roots it verifies the others with, which only matter for an https url."""
+def configured(name, app, yaml, apps):
+    """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name, the files of
+    its client certificate and key and of the roots it verifies the others with (which only matter for an https url), and what
+    unifist-unum's API needs to join Unums: the url of every app's api, the secret the ingress trusts and the secret each app
+    verifies the others with."""
 
     for doc in decode_yaml_stream(yaml):
         if doc['kind'] != 'Deployment':
@@ -211,11 +213,38 @@ def configured(name, app, yaml):
                     'apiVersion': 'v1',
                     'kind': 'ConfigMap',
                     'metadata': {'name': 'config', 'namespace': app},
-                    'data': {'unum.json': '{"unum": "%s", "local": "%s-%s", "cert": ["%s/client/tls.crt", "%s/client/tls.key"], "verify": "%s/roots/ca.crt"}' % (
-                        name, app, name, CERTS, CERTS, CERTS)},
+                    'data': {'unum.json': encode_json({
+                        'unum': name,
+                        'local': '%s-%s' % (app, name),
+                        'cert': ['%s/client/tls.crt' % CERTS, '%s/client/tls.key' % CERTS],
+                        'verify': '%s/roots/ca.crt' % CERTS,
+                        'apps': {each: 'https://api.%s.%s.localhost' % (each, name) for each in apps},
+                        'trusted': 'traefik/trusted',
+                        'roots': ['%s/unum-roots' % each for each in apps if each != FIRST],
+                    })},
                 }]))
 
     return None
+
+def grant(namespace, secret, create):
+    """The Role in the namespace that lets the ServiceAccount api of unifist-unum read and change the Secret, and make Secrets if it
+    is one the API makes (that can't be limited by name), and the RoleBinding that gives it."""
+
+    rules = [{'apiGroups': [''], 'resources': ['secrets'], 'resourceNames': [secret], 'verbs': ['get', 'list', 'update', 'patch']}]
+
+    if create:
+        rules.append({'apiGroups': [''], 'resources': ['secrets'], 'verbs': ['create']})
+
+    return str(encode_yaml_stream([
+        {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'Role', 'metadata': {'name': secret, 'namespace': namespace}, 'rules': rules},
+        {
+            'apiVersion': 'rbac.authorization.k8s.io/v1',
+            'kind': 'RoleBinding',
+            'metadata': {'name': secret, 'namespace': namespace},
+            'subjects': [{'kind': 'ServiceAccount', 'name': 'api', 'namespace': FIRST}],
+            'roleRef': {'apiGroup': 'rbac.authorization.k8s.io', 'kind': 'Role', 'name': secret},
+        },
+    ]))
 
 def resource(counts, app, workload):
     """Tilt's name for a workload: plain, or api:deployment:<namespace> when two apps each have one."""
@@ -295,7 +324,7 @@ def unum():
                 k8s_yaml(blob(caller(namespace)))
                 middlewares.append(namespace)
 
-        config_yaml = configured(name, app, yaml)
+        config_yaml = configured(name, app, yaml, apps)
 
         if config_yaml:
             k8s_yaml(blob(config_yaml))
@@ -306,11 +335,19 @@ def unum():
             if doc['kind'] == 'Deployment':
                 workloads.append((app, doc['metadata']['name']))
 
-    # The middlewares are Traefik's and the client certificates cert-manager's, so they wait for their CRDs.
-    if middlewares or clients:
+    # What unifist-unum's API may do to the secrets: the ingress's trusted, and the roots of each other app.
+    grants = []
+
+    if FIRST in apps:
+        for namespace, secret, create in [('traefik', 'trusted', False)] + [(each, 'unum-roots', True) for each in apps if each != FIRST]:
+            k8s_yaml(blob(grant(namespace, secret, create)))
+            grants += ['%s:role:%s' % (secret, namespace), '%s:rolebinding:%s' % (secret, namespace)]
+
+    # The middlewares are Traefik's, the client certificates cert-manager's, and traefik is a namespace the ingress makes, so they wait.
+    if middlewares or clients or grants:
         k8s_resource(
             new_name='identities', resource_deps=['ingress', 'cert-manager'],
-            objects=['caller:middleware:%s' % namespace for namespace in middlewares] + ['unum-client:certificate:%s' % namespace for namespace in clients])
+            objects=['caller:middleware:%s' % namespace for namespace in middlewares] + ['unum-client:certificate:%s' % namespace for namespace in clients] + grants)
 
     # Two apps can each have an api, which Tilt then names api:deployment:<namespace>.
     counts = {}

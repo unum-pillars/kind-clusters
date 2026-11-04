@@ -1,10 +1,10 @@
 #!/bin/sh
-# Prove joined Unums read each other's records over https with mutual TLS: the Route rows each holds for the other are https urls (joining
-# again changes one that is on http), a
-# record made in A is read from B, and once A has revoked B, with Traefik restarted to cut the connection B's api held open, B no
-# longer reads it, until A accepts B again. Usage: test/secure.sh <a> <b>, with both clusters up (make ci NAME=<each>). It joins
-# them first, which also has each accept the other's root, so the Unums are joined and A accepts B when it's done. The calls are curl
-# from a pod in each cluster, by service name, so they need no ingress cluster.
+# Prove joined Unums read each other's records over https with mutual TLS, through their apis: each api says who its Unum is, the Route rows
+# each holds for the other are https urls (joining again changes one that is on http), a record made in A is read from B, and once A has
+# revoked B through its api, with Traefik restarted to cut the connection B's api held open, B no longer reads it, until A accepts B
+# again. Usage: test/secure.sh <a> <b>, with both clusters up (make ci NAME=<each>). It joins them first, which also has each accept
+# the other, so the Unums are joined and A accepts B when it's done. The calls are curl from a pod in each cluster, by service name,
+# so they need no ingress cluster.
 set -e
 
 A=$1
@@ -54,6 +54,11 @@ reads() {
 
 scripts/join.sh "$A" "$B" > /dev/null
 
+# Each api says who its Unum is
+for c in "$A" "$B"; do
+    call "$c" http://api.unifist-unum/unum | grep -q "\"unum\": \"$c\"" || { echo "the api of $c does not say who it is"; exit 1; }
+done
+
 # A Route that is still on http is changed to https by joining again
 for id in $(call "$A" "http://api.unifist-unum/model/route?holder=$B" | grep -o '"id": [0-9]*' | grep -o '[0-9]*'); do
     call "$A" -X DELETE "http://api.unifist-unum/model/route/$id" > /dev/null
@@ -79,8 +84,8 @@ call "$A" -X POST http://api.cumulus/model/unifist -H 'Content-Type: application
 reads "$A" 1 || { echo "$A does not read its own record"; exit 1; }
 reads "$B" 1 || { echo "$B does not read the record of $A over https"; exit 1; }
 
-# A revokes B, and Traefik in A is restarted to cut the connection B's api holds open, which a revoke leaves: B no longer reads it
-scripts/revoke.sh "$A" "$B" > /dev/null
+# A revokes B through its api, and Traefik in A is restarted to cut the connection B's api holds open, which a revoke leaves: B no longer reads it
+call "$A" -X DELETE "http://api.unifist-unum/accept/$B" | grep -q "\"unum\": \"$B\"" || { echo "the api of $A did not revoke $B"; exit 1; }
 kubectl --context "kind-$A" -n traefik rollout restart deployment/traefik > /dev/null
 kubectl --context "kind-$A" -n traefik rollout status deployment/traefik --timeout=120s > /dev/null
 
@@ -88,7 +93,10 @@ reads "$B" 0 || { echo "$B still reads the record of $A after $A revoked it"; ex
 reads "$A" 1 || { echo "$A does not read its own record after revoking $B"; exit 1; }
 
 # A accepts B again, and B reads it again
-scripts/accept.sh "$A" "$B" > /dev/null
+fingerprint=$(call "$A" -k --connect-to "::$B-control-plane:443" "https://api.unifist-unum.$B.localhost/unum" | grep -o '"fingerprint": "[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
+call "$A" -X POST http://api.unifist-unum/accept -H 'Content-Type: application/json' \
+    -d "{\"url\": \"https://api.unifist-unum.$B.localhost\", \"fingerprint\": \"$fingerprint\"}" | grep -q "\"unum\": \"$B\"" ||
+    { echo "the api of $A did not accept $B"; exit 1; }
 reads "$B" 1 || { echo "$B does not read the record of $A after $A accepted it again"; exit 1; }
 
 echo "$B reads the record of $A over https, stops when $A revokes it, and reads it again when $A accepts it"
