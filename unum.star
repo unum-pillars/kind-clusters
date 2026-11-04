@@ -10,6 +10,9 @@ ACCOUNT = 'gaf3'
 
 PILLARS = ['mysql', 'redis']
 
+# Where the files of the Unum's client certificate and of the roots it verifies the others with are in a pod: the secrets unum-client and unum-roots, as directories.
+CERTS = '/opt/service/certs'
+
 # The app whose api creates the schemas the others use.
 FIRST = 'unifist-unum'
 
@@ -145,8 +148,58 @@ def caller(namespace):
         'spec': {'passTLSClientCert': {'info': {'serialNumber': True, 'subject': {'commonName': True}}}},
     }]))
 
+def secured(yaml):
+    """The app's YAML with the secrets unum-client, the Unum's client certificate (made by client()), and unum-roots, the roots it
+    verifies the others with (put there by scripts/join.sh), mounted as directories, never a subPath, so a renewed one reaches the pod,
+    into the containers that mount the config. Both are optional, so a pod starts before they exist and gets them when they do."""
+
+    docs = []
+
+    for doc in decode_yaml_stream(yaml):
+        if doc['kind'] == 'Deployment':
+            spec = doc['spec']['template']['spec']
+            volumes = spec.get('volumes', [])
+
+            if any([volume.get('configMap', {}).get('name') == 'config' for volume in volumes]):
+                spec['volumes'] = volumes + [
+                    {'name': 'unum-client', 'secret': {'secretName': 'unum-client', 'optional': True}},
+                    {'name': 'unum-roots', 'secret': {'secretName': 'unum-roots', 'optional': True}},
+                ]
+
+                for container in spec['containers']:
+                    mounts = container.get('volumeMounts', [])
+
+                    if any([mount['name'] == 'config' for mount in mounts]):
+                        container['volumeMounts'] = mounts + [
+                            {'name': 'unum-client', 'mountPath': CERTS + '/client', 'readOnly': True},
+                            {'name': 'unum-roots', 'mountPath': CERTS + '/roots', 'readOnly': True},
+                        ]
+
+        docs.append(doc)
+
+    return str(encode_yaml_stream(docs))
+
+def client(name, app):
+    """The Certificate for the Unum's client certificate in the app's namespace, from the Unum's own issuer, its common name the
+    Unum's name, as the client secret in cert-manager is."""
+
+    return str(encode_yaml_stream([{
+        'apiVersion': 'cert-manager.io/v1',
+        'kind': 'Certificate',
+        'metadata': {'name': 'unum-client', 'namespace': app},
+        'spec': {
+            'commonName': name,
+            'subject': {'organizationalUnits': ['client']},
+            'secretName': 'unum-client',
+            'usages': ['client auth'],
+            'privateKey': {'algorithm': 'ECDSA', 'size': 256},
+            'issuerRef': {'group': 'cert-manager.io', 'kind': 'ClusterIssuer', 'name': 'unum'},
+        },
+    }]))
+
 def configured(name, app, yaml):
-    """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name."""
+    """The config an app that mounts a ConfigMap named config reads: the routed source's own arguments, this Unum's name, and the
+    files of its client certificate and key and of the roots it verifies the others with, which only matter for an https url."""
 
     for doc in decode_yaml_stream(yaml):
         if doc['kind'] != 'Deployment':
@@ -158,7 +211,8 @@ def configured(name, app, yaml):
                     'apiVersion': 'v1',
                     'kind': 'ConfigMap',
                     'metadata': {'name': 'config', 'namespace': app},
-                    'data': {'unum.json': '{"unum": "%s", "local": "%s-%s"}' % (name, app, name)},
+                    'data': {'unum.json': '{"unum": "%s", "local": "%s-%s", "cert": ["%s/client/tls.crt", "%s/client/tls.key"], "verify": "%s/roots/ca.crt"}' % (
+                        name, app, name, CERTS, CERTS, CERTS)},
                 }]))
 
     return None
@@ -209,6 +263,7 @@ def unum():
 
     workloads = []
     middlewares = []
+    clients = []
 
     for app in apps:
         source = apps[app]
@@ -230,6 +285,8 @@ def unum():
         else:
             fail('%s in apps.yaml needs a tag, a hash or a checkout' % app)
 
+        yaml = secured(yaml)
+
         k8s_yaml(blob(yaml))
         k8s_yaml(blob(ingresses(name, yaml)))
 
@@ -242,14 +299,18 @@ def unum():
 
         if config_yaml:
             k8s_yaml(blob(config_yaml))
+            k8s_yaml(blob(client(name, app)))
+            clients.append(app)
 
         for doc in decode_yaml_stream(yaml):
             if doc['kind'] == 'Deployment':
                 workloads.append((app, doc['metadata']['name']))
 
-    # The middlewares are Traefik's, so they wait for its CRDs.
-    if middlewares:
-        k8s_resource(new_name='callers', objects=['caller:middleware:%s' % namespace for namespace in middlewares], resource_deps=['ingress'])
+    # The middlewares are Traefik's and the client certificates cert-manager's, so they wait for their CRDs.
+    if middlewares or clients:
+        k8s_resource(
+            new_name='identities', resource_deps=['ingress', 'cert-manager'],
+            objects=['caller:middleware:%s' % namespace for namespace in middlewares] + ['unum-client:certificate:%s' % namespace for namespace in clients])
 
     # Two apps can each have an api, which Tilt then names api:deployment:<namespace>.
     counts = {}
