@@ -92,8 +92,10 @@ when it is made; an existing cluster has to be deleted and made again (its data 
 
 Two Unums that are joined read each other's records. Joining is a Route row in each Unum's `unum.route` for the other: the
 records whose `home` is the other, owned by the other as `holder`, at its cumulus api by name,
-`http://api.cumulus.<unum>.localhost`. `make join` puts them in through unifist-unum's REST, so it's the app that writes
-them, and is safe to run again:
+`https://api.cumulus.<unum>.localhost`, which is mutual TLS (see Authenticating between Unums). `make join` has the two Unums accept
+each other's client certificates, puts the other's root in cumulus's secret `unum-roots`, and puts the rows in through unifist-unum's REST, so
+it's the app that writes them. It waits for cumulus's api pods to have the roots and their client certificate (the secret `unum-client`, from
+the Unum's own issuer), which the kubelet brings in about a minute after they change, and it is safe to run again:
 
     make join A=us B=them        # defaults to us and them
     make test-route A=us B=them  # a record made in one is read from the other, once, with the id of the Unum that made it
@@ -128,6 +130,10 @@ the Unum it calls checks it: mutual TLS, done by the ingress. Each step has a `m
 - **Calling.** A relations-rest Source presents its certificate and verifies the other Unum with `cert` and `verify` as paths, and
   with the wrong Unum's root the handshake fails, so a client knows which Unum it is talking to. `make test-rest` (relations-rest from
   PyPI, from a pod in `them`, with the secrets mounted as directories, never `subPath`) proves it, and that `us` is told `them` called.
+  The apps do the same: `unum.star` mounts `unum-client` and `unum-roots` into the containers that mount the config, as directories, and
+  `unum.json` names the files as `cert` and `verify`, which cumulus passes to relations-unum 0.7.0. `make test-secure`: joined Unums read
+  each other's records over https, `them` stops reading `us`'s once `us` revokes it (and Traefik is restarted to cut the connection the
+  api held open), and reads them again when `us` accepts it.
 - **Rotating.** Nothing restarts. `make test-rotate` renews a client certificate, a CA and a server certificate with cert-manager. A
   client's `cert` and `verify` are read when a connection is made, so the next one uses a renewed file and one held open keeps what it had.
   A Secret mounted as a directory reaches the pod about a minute after cert-manager makes it (70 to 85 seconds measured, the kubelet's
@@ -141,8 +147,7 @@ the Unum it calls checks it: mutual TLS, done by the ingress. Each step has a `m
 The weak spot: each Unum revokes for itself, so a revoked Unum is still trusted by every Unum that hasn't removed it yet.
 
 Not here yet: the root key outside the cluster (unum-pillars/unum#3), the join GUI (unum-apps/unifist-unum#14), revoking at once, the
-Unums' own calls to each other on `https://` (they stay on `http://` until relations-dil/python-relations-unum#24 lets them present a
-certificate), the apps reading who called (relations-dil/python-relations-unifist#12), renewing a Unum's own root (it reissues every
+apps reading who called (relations-dil/python-relations-unifist#12), renewing a Unum's own root (it reissues every
 certificate in it), and TLS session resumption, which the tests can't show either way.
 
 ### Browsers

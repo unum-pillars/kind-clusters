@@ -70,6 +70,7 @@ pipeline {
                         sh 'make test-cross'
                         sh 'make test-route'
                         sh 'make test-write'
+                        sh 'make test-secure'
                         sh 'make test-accept'
                         sh 'make test-rest'
                         sh 'make test-rotate'

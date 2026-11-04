@@ -46,6 +46,7 @@ make test-caller NAME=them
 make test-cross
 make test-route
 make test-write
+make test-secure
 make test-accept
 make test-rest
 make test-rotate
