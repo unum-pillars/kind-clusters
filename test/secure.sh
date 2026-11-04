@@ -1,5 +1,6 @@
 #!/bin/sh
-# Prove joined Unums read each other's records over https with mutual TLS: the Route rows each holds for the other are https urls, a
+# Prove joined Unums read each other's records over https with mutual TLS: the Route rows each holds for the other are https urls (joining
+# again changes one that is on http), a
 # record made in A is read from B, and once A has revoked B, with Traefik restarted to cut the connection B's api held open, B no
 # longer reads it, until A accepts B again. Usage: test/secure.sh <a> <b>, with both clusters up (make ci NAME=<each>). It joins
 # them first, which also has each accept the other's root, so the Unums are joined and A accepts B when it's done. The calls are curl
@@ -50,6 +51,16 @@ reads() {
     done
     return 1
 }
+
+scripts/join.sh "$A" "$B" > /dev/null
+
+# A Route that is still on http is changed to https by joining again
+for id in $(call "$A" "http://api.unifist-unum/model/route?holder=$B" | grep -o '"id": [0-9]*' | grep -o '[0-9]*'); do
+    call "$A" -X DELETE "http://api.unifist-unum/model/route/$id" > /dev/null
+done
+call "$A" -X POST http://api.unifist-unum/model/route -H 'Content-Type: application/json' \
+    -d "{\"route\": {\"home\": \"$B\", \"role\": \"owner\", \"holder\": \"$B\", \"url\": \"http://api.cumulus.$B.localhost\"}}" |
+    grep -q '"url": "http://' || { echo "no Route on http made in $A for $B"; exit 1; }
 
 scripts/join.sh "$A" "$B" > /dev/null
 
