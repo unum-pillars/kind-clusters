@@ -93,7 +93,7 @@ reads "$B" 0 || { echo "$B still reads the record of $A after $A revoked it"; ex
 reads "$A" 1 || { echo "$A does not read its own record after revoking $B"; exit 1; }
 
 # A accepts B again, and B reads it again
-fingerprint=$(call "$A" -k "https://api.unifist-unum.$B.localhost/unum" | grep -o '"fingerprint": "[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
+fingerprint=$(call "$A" -k --connect-to "::$B-control-plane:443" "https://api.unifist-unum.$B.localhost/unum" | grep -o '"fingerprint": "[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
 call "$A" -X POST http://api.unifist-unum/accept -H 'Content-Type: application/json' \
     -d "{\"url\": \"https://api.unifist-unum.$B.localhost\", \"fingerprint\": \"$fingerprint\"}" | grep -q "\"unum\": \"$B\"" ||
     { echo "the api of $A did not accept $B"; exit 1; }
