@@ -11,7 +11,7 @@ One folder per cluster, in `clusters/`:
 
 - `pillars/mysql/`: MySQL at `mysql.mysql:3306`, root/root.
 - `pillars/redis/`: Redis at `redis.redis:6379`, no password, append-only.
-- `pillars/cert-manager/`: cert-manager, and each Unum's own self-signed root (named for the Unum) and the ClusterIssuer `unum` that signs with it, so a Unum issues certificates, and its own client certificate (the secret `client`, named for the Unum, for client use). `make test-certificates NAME=us` proves it. Every app's Ingress asks `unum` for a certificate, so each host also answers on https (from inside the Unums; a browser on the host still gets http through the ingress cluster), and `make test-https NAME=us` proves it. The ingress also checks a client certificate if one is given, never requiring one: the secret `trusted` in `traefik` holds the CAs it trusts, its own root to begin with, set by `scripts/trust.sh` from `trust/`, and `make test-trust NAME=us` proves that none passes, its own passes and a stranger's is refused. Every app's Ingress also names a Middleware, `caller`, so an app is told who called in `X-Forwarded-Tls-Client-Cert-Info` (the first `Subject="CN=<Unum>"` in it, with the certificate's serial number, the rest being the chain Traefik verified it with), and Traefik drops that header from a request that sets it itself; `make test-caller NAME=us` proves both. A Unum accepts client certificates from another once it takes that Unum's root into `trusted`: `make accept A=us B=them` (`scripts/accept.sh`) has `us` accept `them`, safe to run again, and Traefik uses it within a few seconds. `make test-accept A=us B=them` proves `us` refuses `them` before and answers after, and puts it back. `make test-rest A=us B=them` proves a relations-rest Source in `them` (relations-rest from PyPI, `cert` and `verify` as paths to Secrets mounted as directories) is refused by `us` until it accepts `them`, then answers, fails the handshake when `verify` is the wrong Unum's root, and that `us` is told `them` called. The Unums' own calls to each other stay on `http://` until relations-dil/python-relations-unum#24 lets them present a certificate. Rotation needs no restart: `make test-rotate A=us B=them` renews a client certificate, a CA and a server certificate with cert-manager. A client's `cert` and `verify` are re-read when a connection is made, so the next one uses a renewed file and one held open keeps what it had; a Secret mounted as a directory (never `subPath`) reaches the pod about a minute after cert-manager makes it (70 to 75 seconds measured, the kubelet's sync); a renewed CA is used as soon as the receiving Unum accepts it again with `make accept`, which adds it beside the old root; and Traefik uses a renewed server certificate or `trusted` secret within seconds, with no restart. Renewing a Unum's own root, which reissues every certificate in it, is not tested. Revoking is the other way: `make revoke A=us B=them` (`scripts/revoke.sh`) takes every root named `them`, a renewed CA's old ones included, out of what `us` trusts, and `make test-revoke A=us B=them` proves `us` then refuses a new connection with `them`'s client certificate within seconds. A connection already open lasts until it closes, since the certificate is checked when it is made (restarting Traefik cuts them), and `us` will not revoke its last root. Each Unum revokes for itself, so a revoked Unum is trusted by every Unum that hasn't yet: that is the weak spot. TLS session resumption is not tested. It's applied by `scripts/cert-manager.sh`, not by the cluster's `kustomization.yaml`, since its CRDs need a server side apply.
+- `pillars/cert-manager/`: cert-manager, and each Unum's own self-signed root (named for the Unum) and the ClusterIssuer `unum` that signs with it, so a Unum issues certificates, and its own client certificate (the secret `client`, named for the Unum, for client use). `make test-certificates NAME=us` proves it. It's applied by `scripts/cert-manager.sh`, not by the cluster's `kustomization.yaml`, since its CRDs need a server side apply.
 
 The plumbing that makes a Unum reachable stays at the root: `ingress/`, `coredns/` and `route/`.
 
@@ -109,6 +109,42 @@ one version bump and one journal entry for each write (`make test-write A=us B=t
 A write from a Unum that doesn't own the record isn't supported yet: it lands in the owner, but bumps the version twice and journals
 twice (relations-dil/python-relations-unifist#19).
 
+### Authenticating between Unums
+
+Each Unum proves who it is with a certificate whose common name is its own name, signed by its own root (the `client` secret above), and
+the Unum it calls checks it: mutual TLS, done by the ingress. Each step has a `make` target that Jenkins runs.
+
+- **HTTPS.** Every app's Ingress asks `unum` for a certificate, so each host answers on https beside http (from inside the Unums; a
+  browser on the host still gets http through the ingress cluster). `make test-https NAME=us`.
+- **Checking.** The ingress checks a client certificate if one is given, and never requires one, since browsers share the hostnames. The
+  TLS option in `trust/` checks it against the secret `trusted` in `traefik`, which begins as the Unum's own root (`scripts/trust.sh`,
+  which makes it only if it is missing). `make test-trust NAME=us`: none passes, its own passes, a stranger's is refused.
+- **Who called.** Every app's Ingress names a Middleware, `caller`, so an app is told in `X-Forwarded-Tls-Client-Cert-Info` who called:
+  the first `Subject="CN=<Unum>"` in it, with the certificate's serial number, the rest being the chain Traefik verified it with.
+  Traefik drops that header from a request that sets it itself, so it can't be forged. `make test-caller NAME=us`.
+- **Accepting.** A Unum accepts client certificates from another once it takes that Unum's root into `trusted`:
+  `make accept A=us B=them` (`scripts/accept.sh`) has `us` accept `them`, safe to run again, and Traefik uses it within seconds.
+  `make test-accept`: `us` refuses `them` before and answers after.
+- **Calling.** A relations-rest Source presents its certificate and verifies the other Unum with `cert` and `verify` as paths, and
+  with the wrong Unum's root the handshake fails, so a client knows which Unum it is talking to. `make test-rest` (relations-rest from
+  PyPI, from a pod in `them`, with the secrets mounted as directories, never `subPath`) proves it, and that `us` is told `them` called.
+- **Rotating.** Nothing restarts. `make test-rotate` renews a client certificate, a CA and a server certificate with cert-manager. A
+  client's `cert` and `verify` are read when a connection is made, so the next one uses a renewed file and one held open keeps what it had.
+  A Secret mounted as a directory reaches the pod about a minute after cert-manager makes it (70 to 85 seconds measured, the kubelet's
+  sync). A renewed CA is used as soon as the receiving Unum accepts it again, which adds it beside the old root. Traefik uses a renewed
+  server certificate or `trusted` secret within seconds.
+- **Revoking.** `make revoke A=us B=them` (`scripts/revoke.sh`) takes every root named `them`, a renewed CA's old ones included, out of
+  what `us` trusts, and refuses to leave none. `make test-revoke`: `us` then refuses a new connection with `them`'s certificate within
+  seconds. A connection already open lasts until it closes, since the certificate is checked when it is made (restarting Traefik cuts
+  them).
+
+The weak spot: each Unum revokes for itself, so a revoked Unum is still trusted by every Unum that hasn't removed it yet.
+
+Not here yet: the root key outside the cluster (unum-pillars/unum#3), the join GUI (unum-apps/unifist-unum#14), revoking at once, the
+Unums' own calls to each other on `https://` (they stay on `http://` until relations-dil/python-relations-unum#24 lets them present a
+certificate), the apps reading who called (relations-dil/python-relations-unifist#12), renewing a Unum's own root (it reissues every
+certificate in it), and TLS session resumption, which the tests can't show either way.
+
 ### Browsers
 
 The same names work in a browser on your Mac, on port 80. The ingress cluster from
@@ -170,8 +206,9 @@ Redis. Run them twice, across deleting and recreating the cluster, and `rows=` a
 (`ingress/` pulls kind-ingress and `pillars/cert-manager/` the cert-manager release from GitHub): every `kustomization.yaml` builds, `test/*.sh` and `scripts/*.sh` pass shellcheck, the
 YAML passes yamllint (`.yamllint`), `test-add` proves `scripts/add.sh`, `test-version` the version, `test-context` that nothing
 switches your kubectl context, and `test-stages` the shape of the Jenkinsfile. Jenkins runs them on every push, and then brings up
-`us` and `them` on its agent from their `apps.yaml` tags and runs `make test` for each, then `make test-cross`, `make test-route` and
-`make test-write`, and `make test-certificates` in each lane (`make tools` puts kind, kubectl and tilt on the agent if it has none). It runs one step for each make command, in
+`us` and `them` on its agent from their `apps.yaml` tags and runs `make test` for each, then `make test-cross`, `make test-route`,
+`make test-write`, `make test-accept`, `make test-rest`, `make test-rotate` and `make test-revoke`, and in each lane `make test-certificates`,
+`make test-https`, `make test-trust` and `make test-caller` (`make tools` puts kind, kubectl and tilt on the agent if it has none). It runs one step for each make command, in
 stages grouped by function, so each command is a collapsible row and a red row is one command. What Jenkins doesn't run, run yourself
 before merging: `make test-browser` (it needs the ingress cluster that holds ports 80 and 443 on a Mac), and for anything about where
 an app comes from, `make test-swap` and `make test-catalog`.
